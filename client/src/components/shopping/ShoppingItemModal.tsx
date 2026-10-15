@@ -24,7 +24,7 @@ export const ShoppingItemModal: React.FC<Props> = ({
 
   const [name, setName] = useState('');
   const [categoryId, setCategoryId] = useState('');
-  const [quantity, setQuantity] = useState<number>(1);
+  const [quantity, setQuantity] = useState<number | string>(1);
   const [unit, setUnit] = useState<UnitType>('units');
   const [notes, setNotes] = useState('');
   const [url, setUrl] = useState('');
@@ -66,7 +66,7 @@ export const ShoppingItemModal: React.FC<Props> = ({
         list_type: listType,
         name: name.trim(),
         category_id: listType === 'supermarket' ? categoryId : null,
-        quantity: Number(quantity) || 1,
+        quantity: Math.max(0.1, Number(quantity) || 1),
         unit,
         notes: notes.trim(),
         url: url.trim(),
@@ -82,7 +82,8 @@ export const ShoppingItemModal: React.FC<Props> = ({
 
   const adjustQty = (amount: number) => {
     setQuantity((prev) => {
-      const next = Math.max(0.25, Math.round((prev + amount) * 100) / 100);
+      const current = Number(prev) || 1;
+      const next = Math.max(0.25, Math.round((current + amount) * 100) / 100);
       return next;
     });
   };
@@ -174,10 +175,10 @@ export const ShoppingItemModal: React.FC<Props> = ({
                 </button>
                 <input
                   type="number"
-                  min="0.1"
-                  step="0.5"
+                  min="0.01"
+                  step="any"
                   value={quantity}
-                  onChange={(e) => setQuantity(Math.max(0.1, Number(e.target.value)))}
+                  onChange={(e) => setQuantity(e.target.value === '' ? '' : e.target.value)}
                   className="w-14 text-center font-bold text-sm bg-transparent focus:outline-none"
                 />
                 <button
@@ -229,7 +230,7 @@ export const ShoppingItemModal: React.FC<Props> = ({
                 <input
                   type="number"
                   min="0"
-                  step="1"
+                  step="any"
                   placeholder="29"
                   value={estimatedPrice}
                   onChange={(e) => setEstimatedPrice(e.target.value)}

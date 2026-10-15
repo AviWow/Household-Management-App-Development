@@ -22,7 +22,7 @@ export const FavoritesDrawer: React.FC<Props> = ({
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState('');
   const [categoryId, setCategoryId] = useState('produce');
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState<number | string>(1);
   const [unit, setUnit] = useState<any>('units');
   const [addingId, setAddingId] = useState<string | null>(null);
 
@@ -208,10 +208,10 @@ export const FavoritesDrawer: React.FC<Props> = ({
                 <div className="flex items-center gap-2">
                   <input
                     type="number"
-                    min="0.1"
-                    step="0.5"
+                    min="0.01"
+                    step="any"
                     value={quantity}
-                    onChange={(e) => setQuantity(Number(e.target.value))}
+                    onChange={(e) => setQuantity(e.target.value === '' ? '' : e.target.value)}
                     className="w-16 px-2 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
                   />
                   <select
