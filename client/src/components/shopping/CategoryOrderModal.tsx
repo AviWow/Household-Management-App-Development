@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useHousehold } from '../../context/HouseholdContext';
 import { ShoppingCategory } from '../../types';
 import { apiShopping } from '../../services/api';
@@ -18,9 +18,33 @@ export const CategoryOrderModal: React.FC<Props> = ({
   onOrderUpdated,
 }) => {
   const { t, showToast } = useHousehold();
-  const [categories, setCategories] = useState<ShoppingCategory[]>(initialCategories);
+  const [categories, setCategories] = useState<ShoppingCategory[]>(initialCategories || []);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialCategories && initialCategories.length > 0) {
+        setCategories([...initialCategories].sort((a, b) => a.display_order - b.display_order));
+      } else {
+        setLoading(true);
+        apiShopping
+          .getCategories()
+          .then((cats) => {
+            if (cats && cats.length > 0) {
+              setCategories([...cats].sort((a, b) => a.display_order - b.display_order));
+            }
+          })
+          .catch((err) => {
+            console.error('Error fetching categories in modal:', err);
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
+    }
+  }, [isOpen, initialCategories]);
 
   if (!isOpen) return null;
 
@@ -139,7 +163,23 @@ export const CategoryOrderModal: React.FC<Props> = ({
 
         {/* Categories List */}
         <div className="p-5 overflow-y-auto space-y-2 flex-1">
-          {categories.map((cat, index) => (
+          {loading ? (
+            <div className="text-center py-10 text-slate-400 text-sm">
+              {t('טוען מחלקות...', 'Loading categories...')}
+            </div>
+          ) : categories.length === 0 ? (
+            <div className="text-center py-10 text-slate-400 text-sm">
+              <p>{t('לא נמצאו מחלקות. לחץ על איפוס כדי לטעון את המחלקות המקוריות.', 'No categories found. Click reset to load default categories.')}</p>
+              <button
+                type="button"
+                onClick={handleReset}
+                className="mt-3 px-3 py-1.5 bg-amber-50 text-amber-700 font-bold rounded-xl text-xs hover:bg-amber-100"
+              >
+                {t('טען מחלקות ברירת מחדל', 'Load default categories')}
+              </button>
+            </div>
+          ) : (
+            categories.map((cat, index) => (
             <div
               key={cat.id}
               draggable
@@ -187,7 +227,7 @@ export const CategoryOrderModal: React.FC<Props> = ({
                 </button>
               </div>
             </div>
-          ))}
+          )))}
         </div>
 
         {/* Footer Actions */}

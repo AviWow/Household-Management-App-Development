@@ -390,7 +390,11 @@ app.post('/api/tasks/trash/empty', (req, res) => {
 // Get categories with custom order
 app.get('/api/shopping/categories', (req, res) => {
   try {
-    const categories = db.prepare('SELECT * FROM shopping_categories ORDER BY display_order ASC').all();
+    let categories = db.prepare('SELECT * FROM shopping_categories ORDER BY display_order ASC').all();
+    if (!categories || categories.length === 0) {
+      initDb();
+      categories = db.prepare('SELECT * FROM shopping_categories ORDER BY display_order ASC').all();
+    }
     res.json(categories);
   } catch (err) {
     res.status(500).json({ error: err.message });
