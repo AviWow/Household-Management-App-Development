@@ -29,7 +29,6 @@ COPY --from=client-builder /app/client/dist /app/client/dist
 ENV DATA_DIR=/data
 ENV PORT=3001
 ENV NODE_ENV=production
-VOLUME ["/data"]
 
 EXPOSE 3001
 
