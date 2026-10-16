@@ -100,6 +100,7 @@ export interface SmartDevice {
   name: string;
   device_type: SmartDeviceType;
   room: string;
+  real_device_id?: string | null;
   is_on: number;
   brightness: number;
   color_temp: LightColorTemp;
@@ -110,4 +111,12 @@ export interface SmartDevice {
   power_watt?: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SmartCredential {
+  service: 'tuya' | 'switcher';
+  is_connected: number;
+  last_test_at?: string | null;
+  last_error?: string | null;
+  config: Record<string, string>;
 }

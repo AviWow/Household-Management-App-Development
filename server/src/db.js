@@ -98,6 +98,7 @@ export function initDb() {
       name TEXT NOT NULL,
       device_type TEXT NOT NULL,
       room TEXT NOT NULL,
+      real_device_id TEXT,
       is_on INTEGER NOT NULL DEFAULT 0,
       brightness INTEGER NOT NULL DEFAULT 100,
       color_temp TEXT NOT NULL DEFAULT 'warm',
@@ -109,7 +110,22 @@ export function initDb() {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS smart_credentials (
+      service TEXT PRIMARY KEY,
+      config TEXT NOT NULL,
+      is_connected INTEGER DEFAULT 0,
+      last_test_at TEXT,
+      last_error TEXT
+    );
   `);
+
+  // Migration: Ensure real_device_id column exists
+  try {
+    db.exec('ALTER TABLE smart_devices ADD COLUMN real_device_id TEXT');
+  } catch (e) {
+    // Column already exists
+  }
 
   // Seed default users if empty
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;

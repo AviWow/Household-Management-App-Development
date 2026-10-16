@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import db, { initDb } from './db.js';
+import { createTuyaDriver, createSwitcherDriver } from './cloudDrivers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -846,6 +847,37 @@ function checkExpiredTimers() {
 // Run expired timer check periodically every 15 seconds
 setInterval(checkExpiredTimers, 15000);
 
+// Helper to dispatch commands to actual physical devices
+async function dispatchRealDeviceCommand(dev, actionData) {
+  if (!dev || !dev.real_device_id) return null;
+
+  try {
+    if (dev.device_type === 'volcano_light') {
+      const credRow = db.prepare("SELECT config FROM smart_credentials WHERE service = 'tuya'").get();
+      if (credRow && credRow.config) {
+        const config = JSON.parse(credRow.config);
+        const driver = createTuyaDriver(config);
+        await driver.setBulbState(dev.real_device_id, actionData);
+        console.log(`[Tuya Cloud] Dispatched state to Volcano Light (${dev.real_device_id}):`, actionData);
+      }
+    } else if (dev.device_type === 'switcher_boiler') {
+      const credRow = db.prepare("SELECT config FROM smart_credentials WHERE service = 'switcher'").get();
+      if (credRow && credRow.config) {
+        const config = JSON.parse(credRow.config);
+        const driver = createSwitcherDriver(config);
+        await driver.controlBoiler(dev.real_device_id, {
+          is_on: actionData.is_on,
+          timer_minutes: actionData.timer_minutes || dev.timer_minutes || 30,
+        });
+        console.log(`[Switcher Cloud] Dispatched state to Switcher (${dev.real_device_id}):`, actionData);
+      }
+    }
+  } catch (err) {
+    console.error(`[Smart Hardware Error for ${dev.name}]:`, err.message);
+    // We log but don't crash, allowing the app to still update the database and state
+  }
+}
+
 app.get('/api/smart-devices', (req, res) => {
   try {
     checkExpiredTimers();
@@ -856,7 +888,83 @@ app.get('/api/smart-devices', (req, res) => {
   }
 });
 
-app.post('/api/smart-devices/:id/toggle', (req, res) => {
+// Add a new smart device
+app.post('/api/smart-devices', (req, res) => {
+  try {
+    const { name, device_type, room, real_device_id, timer_minutes } = req.body;
+    if (!name || !device_type) {
+      return res.status(400).json({ error: 'Name and device_type are required' });
+    }
+
+    const id = `dev-${randomUUID().slice(0, 8)}`;
+    const nowIso = new Date().toISOString();
+
+    db.prepare(`
+      INSERT INTO smart_devices (
+        id, name, device_type, room, real_device_id, is_on, brightness,
+        color_temp, color_hex, timer_minutes, timer_ends_at, current_temp, power_watt,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 0, 100, 'warm', '#FFA726', ?, NULL, 46.5, 0, ?, ?)
+    `).run(
+      id,
+      name.trim(),
+      device_type,
+      room ? room.trim() : 'כללי',
+      real_device_id ? real_device_id.trim() : null,
+      timer_minutes ? Number(timer_minutes) : 30,
+      nowIso,
+      nowIso
+    );
+
+    const newDevice = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
+    res.status(201).json(newDevice);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update device details
+app.put('/api/smart-devices/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const dev = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
+    if (!dev) return res.status(404).json({ error: 'Device not found' });
+
+    const { name, room, real_device_id, timer_minutes } = req.body;
+    const nowIso = new Date().toISOString();
+
+    db.prepare(`
+      UPDATE smart_devices
+      SET name = ?, room = ?, real_device_id = ?, timer_minutes = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      name !== undefined ? name.trim() : dev.name,
+      room !== undefined ? room.trim() : dev.room,
+      real_device_id !== undefined ? (real_device_id ? real_device_id.trim() : null) : dev.real_device_id,
+      timer_minutes !== undefined ? Number(timer_minutes) : dev.timer_minutes,
+      nowIso,
+      id
+    );
+
+    const updated = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a smart device
+app.delete('/api/smart-devices/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    db.prepare('DELETE FROM smart_devices WHERE id = ?').run(id);
+    res.json({ success: true, id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/smart-devices/:id/toggle', async (req, res) => {
   try {
     const { id } = req.params;
     const dev = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
@@ -868,15 +976,14 @@ app.post('/api/smart-devices/:id/toggle', (req, res) => {
 
     let timerEndsAt = null;
     let powerWatt = 0;
-    let currentTemp = dev.current_temp;
 
     if (newIsOn) {
       if (dev.device_type === 'switcher_boiler') {
         const durationMins = dev.timer_minutes || 30;
         timerEndsAt = new Date(now.getTime() + durationMins * 60000).toISOString();
-        powerWatt = 2500; // Typical 2.5 kW electric water boiler element
+        powerWatt = 2500;
       } else if (dev.device_type === 'volcano_light') {
-        powerWatt = Math.round(12 * (dev.brightness / 100)); // ~12W LED bulb
+        powerWatt = Math.round(12 * (dev.brightness / 100));
       } else {
         powerWatt = 100;
       }
@@ -891,6 +998,15 @@ app.post('/api/smart-devices/:id/toggle', (req, res) => {
       WHERE id = ?
     `).run(newIsOn, timerEndsAt, powerWatt, nowIso, id);
 
+    // Call real hardware in cloud if linked
+    await dispatchRealDeviceCommand(dev, {
+      is_on: newIsOn,
+      brightness: dev.brightness,
+      color_temp: dev.color_temp,
+      color_hex: dev.color_hex,
+      timer_minutes: dev.timer_minutes,
+    });
+
     const updated = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
     res.json(updated);
   } catch (err) {
@@ -898,7 +1014,7 @@ app.post('/api/smart-devices/:id/toggle', (req, res) => {
   }
 });
 
-app.post('/api/smart-devices/:id/set', (req, res) => {
+app.post('/api/smart-devices/:id/set', async (req, res) => {
   try {
     const { id } = req.params;
     const dev = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
@@ -957,6 +1073,15 @@ app.post('/api/smart-devices/:id/set', (req, res) => {
       id
     );
 
+    // Call real hardware in cloud if linked
+    await dispatchRealDeviceCommand(dev, {
+      is_on: targetIsOn,
+      brightness: targetBrightness,
+      color_temp: targetColorTemp,
+      color_hex: targetColorHex,
+      timer_minutes: targetTimerMins,
+    });
+
     const updated = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
     res.json(updated);
   } catch (err) {
@@ -964,21 +1089,19 @@ app.post('/api/smart-devices/:id/set', (req, res) => {
   }
 });
 
-// Master Scenes (e.g. 'all_off', 'shower_ready', 'good_night', 'good_morning')
-app.post('/api/smart-devices/scene/:sceneName', (req, res) => {
+// Master Scenes
+app.post('/api/smart-devices/scene/:sceneName', async (req, res) => {
   try {
     const { sceneName } = req.params;
     const now = new Date();
     const nowIso = now.toISOString();
 
     if (sceneName === 'all_off' || sceneName === 'leaving_home') {
-      // Turn off everything
       db.prepare(`
         UPDATE smart_devices
         SET is_on = 0, power_watt = 0, timer_ends_at = NULL, updated_at = ?
       `).run(nowIso);
     } else if (sceneName === 'shower_ready') {
-      // Turn on boiler for 30 minutes, soft warm light
       const endsAt = new Date(now.getTime() + 30 * 60000).toISOString();
       db.prepare(`
         UPDATE smart_devices
@@ -986,7 +1109,6 @@ app.post('/api/smart-devices/scene/:sceneName', (req, res) => {
         WHERE device_type = 'switcher_boiler'
       `).run(endsAt, nowIso);
     } else if (sceneName === 'good_night') {
-      // Turn off boiler, dim volcano lights to warm 20%
       db.prepare(`
         UPDATE smart_devices
         SET is_on = 0, power_watt = 0, timer_ends_at = NULL, updated_at = ?
@@ -999,7 +1121,6 @@ app.post('/api/smart-devices/scene/:sceneName', (req, res) => {
         WHERE device_type = 'volcano_light'
       `).run(nowIso);
     } else if (sceneName === 'good_morning') {
-      // Turn on lights to neutral 80%
       db.prepare(`
         UPDATE smart_devices
         SET is_on = 1, brightness = 80, color_temp = 'neutral', color_hex = '#FFF3E0', power_watt = 10, updated_at = ?
@@ -1008,7 +1129,99 @@ app.post('/api/smart-devices/scene/:sceneName', (req, res) => {
     }
 
     const allDevices = db.prepare('SELECT * FROM smart_devices ORDER BY device_type DESC, created_at ASC').all();
+
+    // Fire hardware commands in background for all linked devices
+    for (const d of allDevices) {
+      dispatchRealDeviceCommand(d, {
+        is_on: d.is_on,
+        brightness: d.brightness,
+        color_temp: d.color_temp,
+        timer_minutes: d.timer_minutes,
+      }).catch(() => {});
+    }
+
     res.json(allDevices);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ----------------------------------------------------
+// SMART CREDENTIALS ROUTES (Save & Test Tuya / Switcher)
+// ----------------------------------------------------
+app.get('/api/smart-credentials', (req, res) => {
+  try {
+    const rows = db.prepare('SELECT service, is_connected, last_test_at, last_error, config FROM smart_credentials').all();
+    const sanitized = rows.map((r) => {
+      let cfg = {};
+      try {
+        cfg = JSON.parse(r.config);
+      } catch (e) {}
+
+      // Mask sensitive fields
+      if (cfg.clientSecret) cfg.clientSecret = '••••••••' + cfg.clientSecret.slice(-4);
+      if (cfg.password) cfg.password = '••••••••';
+      if (cfg.token) cfg.token = '••••••••' + cfg.token.slice(-4);
+
+      return {
+        service: r.service,
+        is_connected: r.is_connected,
+        last_test_at: r.last_test_at,
+        last_error: r.last_error,
+        config: cfg,
+      };
+    });
+    res.json(sanitized);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/smart-credentials', async (req, res) => {
+  try {
+    const { service, config, testDeviceId } = req.body;
+    if (!service || !config) {
+      return res.status(400).json({ error: 'Service and config are required' });
+    }
+
+    let isConnected = 0;
+    let lastError = null;
+    let testMessage = '';
+
+    // Test real cloud connection
+    try {
+      if (service === 'tuya') {
+        const driver = createTuyaDriver(config);
+        const testRes = await driver.testConnection(testDeviceId);
+        isConnected = 1;
+        testMessage = testRes.deviceName ? `מחובר בהצלחה! זוהה מכשיר: ${testRes.deviceName}` : 'מחובר בהצלחה לענן Tuya / Smart Life!';
+      } else if (service === 'switcher') {
+        const driver = createSwitcherDriver(config);
+        const testRes = await driver.testConnection();
+        isConnected = 1;
+        testMessage = testRes.message || 'מחובר בהצלחה לענן Switcher!';
+      }
+    } catch (testErr) {
+      isConnected = 0;
+      lastError = testErr.message;
+      testMessage = `שגיאת חיבור: ${testErr.message}`;
+    }
+
+    const nowIso = new Date().toISOString();
+    const configStr = JSON.stringify(config);
+
+    db.prepare(`
+      INSERT OR REPLACE INTO smart_credentials (service, config, is_connected, last_test_at, last_error)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(service, configStr, isConnected, nowIso, lastError);
+
+    res.json({
+      success: true,
+      service,
+      is_connected: isConnected,
+      message: testMessage,
+      error: lastError,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

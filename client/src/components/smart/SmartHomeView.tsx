@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useHousehold } from '../../context/HouseholdContext';
-import { SmartDevice, LightColorTemp } from '../../types';
+import { SmartDevice, LightColorTemp, SmartCredential, SmartDeviceType } from '../../types';
 import { apiSmartDevices } from '../../services/api';
 import {
   Flame,
@@ -12,11 +12,20 @@ import {
   Moon,
   ShowerHead,
   Sun,
-  Sparkles,
   Sliders,
   Check,
   RefreshCw,
-  Info
+  Plus,
+  Trash2,
+  Pencil,
+  Settings,
+  ExternalLink,
+  Wifi,
+  WifiOff,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle
 } from 'lucide-react';
 
 const COLOR_PRESETS = [
@@ -29,37 +38,84 @@ const COLOR_PRESETS = [
   { name: 'ירוק יער', hex: '#10B981', temp: 'neutral' as LightColorTemp },
 ];
 
+const ROOM_OPTIONS = ['סלון', 'חדר שינה', 'חדר רחצה ראשי', 'מטבח', 'חדר ילדים', 'מרפסת', 'משרד'];
+
 export const SmartHomeView: React.FC = () => {
   const { t, showToast } = useHousehold();
   const [devices, setDevices] = useState<SmartDevice[]>([]);
+  const [credentials, setCredentials] = useState<SmartCredential[]>([]);
   const [loading, setLoading] = useState(true);
   const [roomFilter, setRoomFilter] = useState<string>('all');
-  const [showInfoModal, setShowInfoModal] = useState(false);
+
+  // Modals state
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [editingDevice, setEditingDevice] = useState<SmartDevice | null>(null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   const [executingScene, setExecutingScene] = useState<string | null>(null);
 
-  // Load devices
-  const loadDevices = async () => {
+  // Device Form state
+  const [devName, setDevName] = useState('');
+  const [devType, setDevType] = useState<SmartDeviceType>('volcano_light');
+  const [devRoom, setDevRoom] = useState('סלון');
+  const [devCustomRoom, setDevCustomRoom] = useState('');
+  const [devRealId, setDevRealId] = useState('');
+  const [devTimerMins, setDevTimerMins] = useState(30);
+
+  // Cloud Credentials Form state
+  const [credTab, setCredTab] = useState<'tuya' | 'switcher'>('tuya');
+  const [tuyaClientId, setTuyaClientId] = useState('');
+  const [tuyaClientSecret, setTuyaClientSecret] = useState('');
+  const [tuyaRegion, setTuyaRegion] = useState('eu');
+  const [tuyaTestDeviceId, setTuyaTestDeviceId] = useState('');
+
+  const [switcherPhone, setSwitcherPhone] = useState('');
+  const [switcherPassword, setSwitcherPassword] = useState('');
+  const [switcherWebhook, setSwitcherWebhook] = useState('');
+
+  const [testingCreds, setTestingCreds] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Load devices and credentials
+  const loadData = async () => {
     try {
-      const data = await apiSmartDevices.list();
-      setDevices(data);
+      const [devList, credList] = await Promise.all([
+        apiSmartDevices.list(),
+        apiSmartDevices.getCredentials(),
+      ]);
+      setDevices(devList);
+      setCredentials(credList);
+
+      // Pre-fill existing credentials
+      const tuyaCred = credList.find((c) => c.service === 'tuya');
+      if (tuyaCred?.config) {
+        setTuyaClientId(tuyaCred.config.clientId || '');
+        setTuyaClientSecret(tuyaCred.config.clientSecret || '');
+        setTuyaRegion(tuyaCred.config.region || 'eu');
+      }
+
+      const switcherCred = credList.find((c) => c.service === 'switcher');
+      if (switcherCred?.config) {
+        setSwitcherPhone(switcherCred.config.phone || '');
+        setSwitcherPassword(switcherCred.config.password || '');
+        setSwitcherWebhook(switcherCred.config.webhookUrl || '');
+      }
     } catch (err: any) {
-      console.error('Failed to load devices:', err);
+      console.error('Failed to load smart home data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDevices();
-    // Poll every 8 seconds for timer countdowns and live status
-    const interval = setInterval(loadDevices, 8000);
+    loadData();
+    const interval = setInterval(loadData, 8000);
     return () => clearInterval(interval);
   }, []);
 
-  // Toggle power
+  // Device Toggle
   const handleToggle = async (dev: SmartDevice) => {
     try {
-      // Optimistic update
       setDevices((prev) =>
         prev.map((d) => (d.id === dev.id ? { ...d, is_on: d.is_on ? 0 : 1 } : d))
       );
@@ -73,11 +129,11 @@ export const SmartHomeView: React.FC = () => {
       );
     } catch (err: any) {
       showToast(err.message || 'Error toggling device', 'error');
-      loadDevices();
+      loadData();
     }
   };
 
-  // Set device settings
+  // Device Settings Update
   const handleUpdateDevice = async (id: string, patch: Partial<SmartDevice>) => {
     try {
       setDevices((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
@@ -85,11 +141,11 @@ export const SmartHomeView: React.FC = () => {
       setDevices((prev) => prev.map((d) => (d.id === id ? updated : d)));
     } catch (err: any) {
       showToast(err.message || 'Error updating device', 'error');
-      loadDevices();
+      loadData();
     }
   };
 
-  // Execute master scene
+  // Master Scene Trigger
   const handleRunScene = async (sceneName: string, label: string) => {
     try {
       setExecutingScene(sceneName);
@@ -103,19 +159,131 @@ export const SmartHomeView: React.FC = () => {
     }
   };
 
-  // Total active power
-  const totalPower = devices.reduce((sum, d) => sum + (d.is_on ? d.power_watt || 0 : 0), 0);
-  const activeCount = devices.filter((d) => d.is_on).length;
+  // Open Add Device Modal
+  const handleOpenAddDevice = () => {
+    setEditingDevice(null);
+    setDevName('');
+    setDevType('volcano_light');
+    setDevRoom('סלון');
+    setDevCustomRoom('');
+    setDevRealId('');
+    setDevTimerMins(30);
+    setShowDeviceModal(true);
+  };
+
+  // Open Edit Device Modal
+  const handleOpenEditDevice = (dev: SmartDevice) => {
+    setEditingDevice(dev);
+    setDevName(dev.name);
+    setDevType(dev.device_type);
+    if (ROOM_OPTIONS.includes(dev.room)) {
+      setDevRoom(dev.room);
+      setDevCustomRoom('');
+    } else {
+      setDevRoom('אחר');
+      setDevCustomRoom(dev.room);
+    }
+    setDevRealId(dev.real_device_id || '');
+    setDevTimerMins(dev.timer_minutes || 30);
+    setShowDeviceModal(true);
+  };
+
+  // Save Device (Create or Update)
+  const handleSaveDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!devName.trim()) return;
+
+    const finalRoom = devRoom === 'אחר' ? devCustomRoom.trim() || 'כללי' : devRoom;
+
+    try {
+      if (editingDevice) {
+        const updated = await apiSmartDevices.update(editingDevice.id, {
+          name: devName.trim(),
+          room: finalRoom,
+          real_device_id: devRealId.trim() || null,
+          timer_minutes: devTimerMins,
+        });
+        setDevices((prev) => prev.map((d) => (d.id === editingDevice.id ? updated : d)));
+        showToast(t('פרטי המכשיר עודכנו בהצלחה!', 'Device updated successfully!'), 'success');
+      } else {
+        const created = await apiSmartDevices.create({
+          name: devName.trim(),
+          device_type: devType,
+          room: finalRoom,
+          real_device_id: devRealId.trim() || null,
+          timer_minutes: devTimerMins,
+        });
+        setDevices((prev) => [...prev, created]);
+        showToast(t('מכשיר חדש נוסף בהצלחה!', 'New device added!'), 'success');
+      }
+      setShowDeviceModal(false);
+    } catch (err: any) {
+      showToast(err.message || 'Error saving device', 'error');
+    }
+  };
+
+  // Delete Device
+  const handleDeleteDevice = async (dev: SmartDevice) => {
+    if (!confirm(t(`האם למחוק את המכשיר "${dev.name}"?`, `Delete device "${dev.name}"?`))) return;
+
+    try {
+      await apiSmartDevices.delete(dev.id);
+      setDevices((prev) => prev.filter((d) => d.id !== dev.id));
+      showToast(t('המכשיר נמחק בהצלחה', 'Device deleted'), 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Error deleting device', 'error');
+    }
+  };
+
+  // Save & Test Cloud Credentials
+  const handleSaveCredentials = async (service: 'tuya' | 'switcher') => {
+    setTestingCreds(true);
+    setTestResult(null);
+
+    const config =
+      service === 'tuya'
+        ? {
+            clientId: tuyaClientId,
+            clientSecret: tuyaClientSecret,
+            region: tuyaRegion,
+          }
+        : {
+            phone: switcherPhone,
+            password: switcherPassword,
+            webhookUrl: switcherWebhook,
+          };
+
+    try {
+      const res = await apiSmartDevices.saveCredentials(service, config, tuyaTestDeviceId);
+      setTestResult({ success: res.is_connected === 1, message: res.message });
+      if (res.is_connected === 1) {
+        showToast(res.message, 'success');
+      } else {
+        showToast(res.message, 'warning');
+      }
+      loadData();
+    } catch (err: any) {
+      setTestResult({ success: false, message: err.message || 'Connection failed' });
+      showToast(err.message || 'Failed to save credentials', 'error');
+    } finally {
+      setTestingCreds(false);
+    }
+  };
+
+  const tuyaCred = credentials.find((c) => c.service === 'tuya');
+  const switcherCred = credentials.find((c) => c.service === 'switcher');
 
   const rooms = ['all', ...Array.from(new Set(devices.map((d) => d.room)))];
   const filteredDevices =
     roomFilter === 'all' ? devices : devices.filter((d) => d.room === roomFilter);
 
+  const totalPower = devices.reduce((sum, d) => sum + (d.is_on ? d.power_watt || 0 : 0), 0);
+  const activeCount = devices.filter((d) => d.is_on).length;
+
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
       {/* Top Banner / Hero Card */}
       <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-indigo-900/40">
-        {/* Subtle background glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -134,17 +302,52 @@ export const SmartHomeView: React.FC = () => {
                 'Direct control of Switcher water boiler and Volcano Smart Life smart lighting.'
               )}
             </p>
+
+            {/* Cloud Connection Badges */}
+            <div className="flex items-center gap-2.5 mt-3 flex-wrap">
+              <span
+                onClick={() => {
+                  setCredTab('switcher');
+                  setShowSettingsModal(true);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition-transform hover:scale-105 ${
+                  switcherCred?.is_connected
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-white/10 text-slate-300 border border-white/10 hover:bg-white/15'
+                }`}
+                title="לחץ להגדרת חיבור Switcher"
+              >
+                {switcherCred?.is_connected ? <Wifi size={13} className="text-emerald-400" /> : <WifiOff size={13} />}
+                <span>{switcherCred?.is_connected ? 'סוויצ׳ר: מחובר לענן' : 'סוויצ׳ר: לחץ לחיבור'}</span>
+              </span>
+
+              <span
+                onClick={() => {
+                  setCredTab('tuya');
+                  setShowSettingsModal(true);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition-transform hover:scale-105 ${
+                  tuyaCred?.is_connected
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-white/10 text-slate-300 border border-white/10 hover:bg-white/15'
+                }`}
+                title="לחץ להגדרת חיבור Volcano / Smart Life"
+              >
+                {tuyaCred?.is_connected ? <Wifi size={13} className="text-emerald-400" /> : <WifiOff size={13} />}
+                <span>{tuyaCred?.is_connected ? 'Volcano (Smart Life): מחובר' : 'Volcano: לחץ לחיבור'}</span>
+              </span>
+            </div>
           </div>
 
-          {/* Quick Metrics Bar */}
-          <div className="flex items-center gap-3">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10 text-center min-w-[100px]">
+          {/* Action & Metric Buttons */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10 text-center min-w-[95px]">
               <span className="block text-[11px] text-slate-300 font-medium">
                 {t('מכשירים דולקים', 'Active Devices')}
               </span>
               <span className="text-xl font-black text-amber-300">{activeCount}</span>
             </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10 text-center min-w-[120px]">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl px-4 py-3 border border-white/10 text-center min-w-[110px]">
               <span className="block text-[11px] text-slate-300 font-medium">
                 {t('צריכה נוכחית', 'Current Power')}
               </span>
@@ -152,12 +355,14 @@ export const SmartHomeView: React.FC = () => {
                 {totalPower.toLocaleString()} <span className="text-xs font-normal">W</span>
               </span>
             </div>
+
+            {/* Real Connection Settings Button */}
             <button
-              onClick={() => setShowInfoModal(true)}
-              className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/10 text-slate-200 hover:text-white transition-all self-stretch flex items-center justify-center"
-              title={t('מידע על חיבור מכשירים', 'Connection Info')}
+              onClick={() => setShowSettingsModal(true)}
+              className="px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
             >
-              <Info size={20} />
+              <Settings size={16} />
+              <span>{t('חיבור מכשירים אמיתיים', 'Real Connection')}</span>
             </button>
           </div>
         </div>
@@ -192,7 +397,7 @@ export const SmartHomeView: React.FC = () => {
               className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-2xl bg-white/10 hover:bg-indigo-500/20 border border-white/15 hover:border-indigo-400/40 text-slate-200 hover:text-indigo-200 font-bold text-xs transition-all active:scale-95"
             >
               <Moon size={15} className="text-indigo-300" />
-              <span>{t('לילה טוב (כיבוי דוד + עמעום)', 'Good Night (Boiler Off)')}</span>
+              <span>{t('לילה טוב (כיבוי דוד + עמעום)', 'Good Night')}</span>
             </button>
 
             <button
@@ -207,9 +412,9 @@ export const SmartHomeView: React.FC = () => {
         </div>
       </div>
 
-      {/* Room Filter Pills */}
-      <div className="flex items-center justify-between gap-3 overflow-x-auto scrollbar-none pb-1">
-        <div className="flex items-center gap-2">
+      {/* Control Bar: Room Filter & Add Device Button */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
           {rooms.map((room) => (
             <button
               key={room}
@@ -225,14 +430,47 @@ export const SmartHomeView: React.FC = () => {
           ))}
         </div>
 
-        <button
-          onClick={loadDevices}
-          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors flex-shrink-0"
-          title={t('רענן מצב מכשירים', 'Refresh')}
-        >
-          <RefreshCw size={17} />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Add Device Button */}
+          <button
+            onClick={handleOpenAddDevice}
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>{t('הוסף מכשיר חכם', 'Add Device')}</span>
+          </button>
+
+          <button
+            onClick={loadData}
+            className="p-2.5 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-2xl transition-colors"
+            title={t('רענן מצב מכשירים', 'Refresh')}
+          >
+            <RefreshCw size={16} />
+          </button>
+        </div>
       </div>
+
+      {/* Empty State */}
+      {filteredDevices.length === 0 && (
+        <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 p-8 shadow-xs">
+          <div className="w-16 h-16 rounded-3xl bg-indigo-50 text-indigo-500 flex items-center justify-center mx-auto mb-3 text-2xl font-bold">
+            ⚡
+          </div>
+          <h3 className="text-base font-bold text-slate-800">
+            {t('אין מכשירים להצגה בחדר זה', 'No devices found in this room')}
+          </h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            {t('לחץ על כפתור "הוסף מכשיר חכם" כדי להוסיף את הדוד, מנורת וולקנו או שקעים חכמים.', 'Click Add Device to add your boiler or smart lights.')}
+          </p>
+          <button
+            onClick={handleOpenAddDevice}
+            className="mt-4 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors inline-flex items-center gap-1.5"
+          >
+            <Plus size={15} />
+            <span>{t('הוסף מכשיר עכשיו', 'Add Device Now')}</span>
+          </button>
+        </div>
+      )}
 
       {/* Devices Cards Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -244,6 +482,8 @@ export const SmartHomeView: React.FC = () => {
                 device={device}
                 onToggle={() => handleToggle(device)}
                 onUpdate={(patch) => handleUpdateDevice(device.id, patch)}
+                onEdit={() => handleOpenEditDevice(device)}
+                onDelete={() => handleDeleteDevice(device)}
               />
             );
           } else {
@@ -253,41 +493,429 @@ export const SmartHomeView: React.FC = () => {
                 device={device}
                 onToggle={() => handleToggle(device)}
                 onUpdate={(patch) => handleUpdateDevice(device.id, patch)}
+                onEdit={() => handleOpenEditDevice(device)}
+                onDelete={() => handleDeleteDevice(device)}
               />
             );
           }
         })}
       </div>
 
-      {/* Connection Info Modal */}
-      {showInfoModal && (
+      {/* ========================================================================= */}
+      {/* ➕ ADD / EDIT SMART DEVICE MODAL                                          */}
+      {/* ========================================================================= */}
+      {showDeviceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-100">
-            <h3 className="text-lg font-black text-slate-800 mb-2">
-              {t('חיבור מוצרי סוויצ׳ר ו-Volcano Smart Life', 'Connecting Switcher & Volcano')}
-            </h3>
-            <div className="text-xs text-slate-600 space-y-3 leading-relaxed">
-              <p>
-                <strong>♨️ סוויצ׳ר (Switcher):</strong> המערכת שולחת פקודות הפעלה, כיבוי וטיימרים
-                אוטומטיים לסוויצ׳ר הדוד. במצב הפעלה, הדוד מתכבה אוטומטית ברגע שהטיימר מסתיים
-                ומציג חישוב צריכת חשמל.
-              </p>
-              <p>
-                <strong>💡 מנורת Volcano (Smart Life / Tuya):</strong> מוצרי וולקנו מבוססים על
-                שבבי Tuya. הממשק מאפשר עמעום עוצמה מ-1% עד 100%, שינוי גוון אור (חם / טבעי / קר)
-                ובחירת צבעי אווירה.
-              </p>
-              <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-800 text-[11px]">
-                💡 <strong>טיפ:</strong> כל שינוי שנעשה כאן נשמר במסד הנתונים ומסונכרן עם כל בני
-                הבית בזמן אמת.
-              </div>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-800">
+                {editingDevice ? t('עריכת מכשיר חכם', 'Edit Smart Device') : t('הוספת מכשיר חכם חדש', 'Add New Smart Device')}
+              </h3>
+              <button
+                onClick={() => setShowDeviceModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
             </div>
-            <button
-              onClick={() => setShowInfoModal(false)}
-              className="w-full mt-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors"
-            >
-              {t('סגור', 'Close')}
-            </button>
+
+            <form onSubmit={handleSaveDevice} className="space-y-4 pt-4">
+              {/* Device Type (only when adding new) */}
+              {!editingDevice && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    {t('סוג מכשיר', 'Device Type')} *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDevType('switcher_boiler');
+                        if (!devName) setDevName('דוד חשמלי (סוויצ׳ר)');
+                        setDevRoom('חדר רחצה ראשי');
+                      }}
+                      className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 transition-all text-right ${
+                        devType === 'switcher_boiler'
+                          ? 'border-orange-500 bg-orange-50/70 text-orange-950 font-bold shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-orange-500 text-white flex items-center justify-center">
+                        <Flame size={18} />
+                      </div>
+                      <div className="text-xs">
+                        <div className="font-bold">דוד סוויצ׳ר</div>
+                        <div className="text-[10px] text-slate-500">דוד מים חמים</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDevType('volcano_light');
+                        if (!devName) setDevName('מנורת סלון (Volcano)');
+                        setDevRoom('סלון');
+                      }}
+                      className={`p-3 rounded-2xl border-2 flex items-center gap-2.5 transition-all text-right ${
+                        devType === 'volcano_light'
+                          ? 'border-amber-500 bg-amber-50/70 text-amber-950 font-bold shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center">
+                        <Lightbulb size={18} />
+                      </div>
+                      <div className="text-xs">
+                        <div className="font-bold">Volcano / Smart Life</div>
+                        <div className="text-[10px] text-slate-500">תאורה חכמה</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Device Name */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {t('שם המכשיר', 'Device Name')} *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={devType === 'switcher_boiler' ? 'דוד חשמלי קומה 1...' : 'מנורת פינת אוכל...'}
+                  value={devName}
+                  onChange={(e) => setDevName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+                />
+              </div>
+
+              {/* Room Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {t('חדר / מיקום', 'Room / Location')} *
+                </label>
+                <select
+                  value={devRoom}
+                  onChange={(e) => setDevRoom(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium bg-white mb-2"
+                >
+                  {ROOM_OPTIONS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                  <option value="אחר">אחר (הקלד שם חדר...)</option>
+                </select>
+
+                {devRoom === 'אחר' && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="הקלד שם חדר (לדוגמה: עליית גג, חצר...)"
+                    value={devCustomRoom}
+                    onChange={(e) => setDevCustomRoom(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                )}
+              </div>
+
+              {/* Real Hardware ID Link */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Wifi size={14} className="text-indigo-600" />
+                    <span>{t('מזהה מכשיר אמיתי (Device ID)', 'Real Hardware Device ID')}</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">אופציונלי</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder={
+                    devType === 'switcher_boiler'
+                      ? 'לדוגמה: a1b2c3d4 (מתוך אפליקציית סוויצ׳ר)'
+                      : 'לדוגמה: eb5a7123984... (מתוך אפליקציית Smart Life)'
+                  }
+                  value={devRealId}
+                  onChange={(e) => setDevRealId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                />
+                <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
+                  {devType === 'switcher_boiler'
+                    ? 'היכנס לאפליקציית Switcher ➔ הגדרות הדוד ⚙️ ➔ "פרטי מכשיר" ➔ העתק את ה-Device ID.'
+                    : 'היכנס לאפליקציית Smart Life ➔ בחר במנורה ➔ עיפרון ✏️ ➔ "Device Information" ➔ העתק Device ID.'}
+                </p>
+              </div>
+
+              {/* Timer Default (for Boiler) */}
+              {devType === 'switcher_boiler' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {t('משך טיימר ברירת מחדל (דקות)', 'Default Timer Duration (minutes)')}
+                  </label>
+                  <select
+                    value={devTimerMins}
+                    onChange={(e) => setDevTimerMins(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium bg-white"
+                  >
+                    <option value={15}>15 דקות</option>
+                    <option value={30}>30 דקות</option>
+                    <option value={45}>45 דקות</option>
+                    <option value={60}>60 דקות (שעה)</option>
+                    <option value={90}>90 דקות (שעה וחצי)</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Form Buttons */}
+              <div className="flex items-center gap-2 pt-3">
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition-colors"
+                >
+                  {editingDevice ? t('שמור שינויים', 'Save Changes') : t('הוסף מכשיר', 'Add Device')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeviceModal(false)}
+                  className="py-3 px-5 rounded-2xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-sm transition-colors"
+                >
+                  {t('ביטול', 'Cancel')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ⚙️ REAL CLOUD CREDENTIALS MODAL                                           */}
+      {/* ========================================================================= */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-black text-slate-800">
+                  {t('הגדרות חיבור למכשירים אמיתיים', 'Real Cloud Device Settings')}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {t('חיבור ישיר לענן של Switcher ו-Smart Life (Tuya)', 'Connect to Switcher & Tuya clouds')}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setTestResult(null);
+                }}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Service Tabs */}
+            <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-2xl my-4">
+              <button
+                onClick={() => {
+                  setCredTab('tuya');
+                  setTestResult(null);
+                }}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  credTab === 'tuya'
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Lightbulb size={15} />
+                <span>Volcano (Smart Life / Tuya)</span>
+              </button>
+              <button
+                onClick={() => {
+                  setCredTab('switcher');
+                  setTestResult(null);
+                }}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  credTab === 'switcher'
+                    ? 'bg-white text-orange-600 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Flame size={15} />
+                <span>דוד סוויצ׳ר (Switcher)</span>
+              </button>
+            </div>
+
+            {/* Test Result Message Box */}
+            {testResult && (
+              <div
+                className={`p-3.5 rounded-2xl mb-4 text-xs flex items-start gap-2.5 ${
+                  testResult.success
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {testResult.success ? (
+                  <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle size={18} className="text-rose-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div>
+                  <div className="font-bold">{testResult.success ? 'חיבור תקין!' : 'שגיאה בחיבור'}</div>
+                  <div className="mt-0.5 leading-relaxed">{testResult.message}</div>
+                </div>
+              </div>
+            )}
+
+            {/* TUYA / SMART LIFE FORM */}
+            {credTab === 'tuya' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 text-amber-900 text-xs leading-relaxed">
+                  💡 <strong>איך משיגים את המפתחות בחינם (ב-2 דקות)?</strong>
+                  <ol className="list-decimal list-inside mt-1.5 space-y-1 text-[11px]">
+                    <li>
+                      היכנס לאתר המפתחים החינמי: 
+                      <a href="https://iot.tuya.com" target="_blank" rel="noreferrer" className="underline font-bold mr-1">
+                        iot.tuya.com <ExternalLink size={10} className="inline" />
+                      </a>
+                    </li>
+                    <li>פתח Cloud Project חדש ➔ מקבלים <strong>Client ID</strong> ו-<strong>Client Secret</strong>.</li>
+                    <li>בלשונית Devices ➔ Link Tuya App Account ➔ סרוק קוד QR מאפליקציית Smart Life בטלפון (בלשונית Me).</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Access ID / Client ID *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="לדוגמה: 3v97qj..."
+                    value={tuyaClientId}
+                    onChange={(e) => setTuyaClientId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Access Secret / Client Secret *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="לדוגמה: d7a1b4..."
+                    value={tuyaClientSecret}
+                    onChange={(e) => setTuyaClientSecret(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      אזור ענן (Region)
+                    </label>
+                    <select
+                      value={tuyaRegion}
+                      onChange={(e) => setTuyaRegion(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium bg-white"
+                    >
+                      <option value="eu">אירופה וישראל (Europe - eu)</option>
+                      <option value="us">אמריקה (Western US - us)</option>
+                      <option value="cn">סין (China - cn)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Device ID לבדיקה
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="מזהה מנורת Volcano"
+                      value={tuyaTestDeviceId}
+                      onChange={(e) => setTuyaTestDeviceId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleSaveCredentials('tuya')}
+                  disabled={testingCreds || !tuyaClientId || !tuyaClientSecret}
+                  className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-colors"
+                >
+                  {testingCreds ? 'בודק ומחבר מול שרתי Tuya...' : 'שמור ובדוק חיבור למנורת Volcano'}
+                </button>
+              </div>
+            )}
+
+            {/* SWITCHER FORM */}
+            {credTab === 'switcher' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-orange-50 rounded-2xl border border-orange-200/80 text-orange-950 text-xs leading-relaxed">
+                  ♨️ <strong>חיבור ישיר לענן סוויצ׳ר (Switcher Cloud):</strong>
+                  <p className="mt-1 text-[11px]">
+                    הזן את מספר הטלפון והסיסמה של חשבון ה-Switcher שלך, והשרת יתחבר ישירות לשליטה בדוד.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    מספר טלפון סוויצ׳ר *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="050-1234567"
+                    value={switcherPhone}
+                    onChange={(e) => setSwitcherPhone(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    סיסמת חשבון סוויצ׳ר *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={switcherPassword}
+                    onChange={(e) => setSwitcherPassword(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">
+                      או כתובת Webhook ישירה (Home Assistant / IFTTT)
+                    </label>
+                    <span className="text-[10px] text-slate-400">מתקדם</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="https://maker.ifttt.com/trigger/switcher_{state}/..."
+                    value={switcherWebhook}
+                    onChange={(e) => setSwitcherWebhook(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono text-left dir-ltr"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleSaveCredentials('switcher')}
+                  disabled={testingCreds || (!switcherPhone && !switcherWebhook)}
+                  className="w-full py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-colors"
+                >
+                  {testingCreds ? 'מתחבר ל-Switcher...' : 'שמור ובדוק חיבור לסוויצ׳ר'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -296,19 +924,26 @@ export const SmartHomeView: React.FC = () => {
 };
 
 /* -------------------------------------------------------------------------------------
- * ♨️ SWITCHER BOILER CARD
+ * ♨️ SWITCHER BOILER CARD (With Edit & Delete)
  * ------------------------------------------------------------------------------------- */
 interface BoilerCardProps {
   device: SmartDevice;
   onToggle: () => void;
   onUpdate: (patch: Partial<SmartDevice>) => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }
 
-const SwitcherBoilerCard: React.FC<BoilerCardProps> = ({ device, onToggle, onUpdate }) => {
+const SwitcherBoilerCard: React.FC<BoilerCardProps> = ({
+  device,
+  onToggle,
+  onUpdate,
+  onEdit,
+  onDelete,
+}) => {
   const { t } = useHousehold();
   const [timeLeft, setTimeLeft] = useState<string>('');
 
-  // Calculate remaining timer
   useEffect(() => {
     if (!device.is_on || !device.timer_ends_at) {
       setTimeLeft('');
@@ -347,10 +982,10 @@ const SwitcherBoilerCard: React.FC<BoilerCardProps> = ({ device, onToggle, onUpd
     >
       <div>
         {/* Card Header */}
-        <div className="flex items-start justify-between gap-3 mb-5">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all flex-shrink-0 ${
                 device.is_on
                   ? 'bg-gradient-to-br from-amber-500 to-rose-600 text-white shadow-md shadow-rose-500/25 animate-pulse'
                   : 'bg-slate-100 text-slate-400'
@@ -358,30 +993,62 @@ const SwitcherBoilerCard: React.FC<BoilerCardProps> = ({ device, onToggle, onUpd
             >
               <Flame size={24} />
             </div>
-            <div>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                {device.room}
-              </span>
-              <h3 className="text-base font-black text-slate-800 mt-1">{device.name}</h3>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {device.room}
+                </span>
+                {device.real_device_id ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                    <Wifi size={10} />
+                    <span>ID: {device.real_device_id}</span>
+                  </span>
+                ) : (
+                  <span
+                    onClick={onEdit}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200"
+                  >
+                    + קשר מכשיר פיזי
+                  </span>
+                )}
+              </div>
+              <h3 className="text-base font-black text-slate-800 mt-1 truncate">{device.name}</h3>
             </div>
           </div>
 
-          {/* Big Power Switch Button */}
-          <button
-            onClick={onToggle}
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-              device.is_on
-                ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/30 scale-105 active:scale-95'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600'
-            }`}
-            title={device.is_on ? t('כבה דוד', 'Turn Off') : t('הדלק דוד', 'Turn On')}
-          >
-            <Power size={22} strokeWidth={2.5} />
-          </button>
+          {/* Action Buttons: Edit, Delete, Big Power Switch */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={onEdit}
+              className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+              title={t('ערוך מכשיר', 'Edit Device')}
+            >
+              <Pencil size={15} />
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              title={t('מחק מכשיר', 'Delete Device')}
+            >
+              <Trash2 size={15} />
+            </button>
+
+            <button
+              onClick={onToggle}
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                device.is_on
+                  ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/30 scale-105 active:scale-95'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600'
+              }`}
+              title={device.is_on ? t('כבה דוד', 'Turn Off') : t('הדלק דוד', 'Turn On')}
+            >
+              <Power size={22} strokeWidth={2.5} />
+            </button>
+          </div>
         </div>
 
         {/* Status & Water Temperature Box */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="p-3.5 bg-white/80 rounded-2xl border border-slate-100 flex items-center gap-3">
             <Thermometer
               size={22}
@@ -410,9 +1077,9 @@ const SwitcherBoilerCard: React.FC<BoilerCardProps> = ({ device, onToggle, onUpd
           </div>
         </div>
 
-        {/* Live Timer Countdown Banner (when On) */}
+        {/* Live Timer Countdown Banner */}
         {device.is_on && timeLeft && (
-          <div className="mb-5 p-3.5 rounded-2xl bg-gradient-to-r from-orange-500 to-rose-500 text-white flex items-center justify-between shadow-md shadow-orange-500/20">
+          <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-orange-500 to-rose-500 text-white flex items-center justify-between shadow-md shadow-orange-500/20">
             <div className="flex items-center gap-2">
               <Clock size={18} className="animate-spin" />
               <span className="text-xs font-bold">{t('כיבוי אוטומטי בעוד:', 'Auto shutoff in:')}</span>
@@ -453,18 +1120,25 @@ const SwitcherBoilerCard: React.FC<BoilerCardProps> = ({ device, onToggle, onUpd
 };
 
 /* -------------------------------------------------------------------------------------
- * 💡 VOLCANO SMART LIFE LIGHT CARD
+ * 💡 VOLCANO LIGHT CARD (With Edit & Delete)
  * ------------------------------------------------------------------------------------- */
 interface LightCardProps {
   device: SmartDevice;
   onToggle: () => void;
   onUpdate: (patch: Partial<SmartDevice>) => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }
 
-const VolcanoLightCard: React.FC<LightCardProps> = ({ device, onToggle, onUpdate }) => {
+const VolcanoLightCard: React.FC<LightCardProps> = ({
+  device,
+  onToggle,
+  onUpdate,
+  onEdit,
+  onDelete,
+}) => {
   const { t } = useHousehold();
 
-  // Atmosphere quick presets
   const applyPreset = (brightness: number, temp: LightColorTemp, hex: string) => {
     onUpdate({
       is_on: 1,
@@ -484,14 +1158,11 @@ const VolcanoLightCard: React.FC<LightCardProps> = ({ device, onToggle, onUpdate
     >
       <div>
         {/* Card Header */}
-        <div className="flex items-start justify-between gap-3 mb-5">
-          <div className="flex items-center gap-3">
-            {/* Lamp Bulb Visual Glow */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
-                device.is_on
-                  ? 'text-white shadow-md'
-                  : 'bg-slate-100 text-slate-400'
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all flex-shrink-0 ${
+                device.is_on ? 'text-white shadow-md' : 'bg-slate-100 text-slate-400'
               }`}
               style={{
                 backgroundColor: device.is_on ? device.color_hex || '#FFA726' : undefined,
@@ -502,30 +1173,62 @@ const VolcanoLightCard: React.FC<LightCardProps> = ({ device, onToggle, onUpdate
             >
               <Lightbulb size={24} className={device.is_on ? 'fill-white' : ''} />
             </div>
-            <div>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
-                {device.room}
-              </span>
-              <h3 className="text-base font-black text-slate-800 mt-1">{device.name}</h3>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                  {device.room}
+                </span>
+                {device.real_device_id ? (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                    <Wifi size={10} />
+                    <span>ID: {device.real_device_id}</span>
+                  </span>
+                ) : (
+                  <span
+                    onClick={onEdit}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200"
+                  >
+                    + קשר מכשיר פיזי
+                  </span>
+                )}
+              </div>
+              <h3 className="text-base font-black text-slate-800 mt-1 truncate">{device.name}</h3>
             </div>
           </div>
 
-          {/* Big Power Switch Button */}
-          <button
-            onClick={onToggle}
-            className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
-              device.is_on
-                ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/30 scale-105 active:scale-95'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600'
-            }`}
-            title={device.is_on ? t('כבה מנורה', 'Turn Off') : t('הדלק מנורה', 'Turn On')}
-          >
-            <Power size={22} strokeWidth={2.5} />
-          </button>
+          {/* Action Buttons: Edit, Delete, Power Switch */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={onEdit}
+              className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+              title={t('ערוך מכשיר', 'Edit Device')}
+            >
+              <Pencil size={15} />
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+              title={t('מחק מכשיר', 'Delete Device')}
+            >
+              <Trash2 size={15} />
+            </button>
+
+            <button
+              onClick={onToggle}
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                device.is_on
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/30 scale-105 active:scale-95'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600'
+              }`}
+              title={device.is_on ? t('כבה מנורה', 'Turn Off') : t('הדלק מנורה', 'Turn On')}
+            >
+              <Power size={22} strokeWidth={2.5} />
+            </button>
+          </div>
         </div>
 
         {/* Dimmer Slider */}
-        <div className="mb-5 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
+        <div className="mb-4 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-100">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <Sliders size={14} className="text-slate-400" />
@@ -546,7 +1249,7 @@ const VolcanoLightCard: React.FC<LightCardProps> = ({ device, onToggle, onUpdate
         </div>
 
         {/* Color Temperature Selector */}
-        <div className="mb-5">
+        <div className="mb-4">
           <span className="text-xs font-bold text-slate-600 block mb-2">
             {t('גוון אור (טמפרטורת צבע):', 'Color Temperature:')}
           </span>

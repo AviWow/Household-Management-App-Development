@@ -1,4 +1,4 @@
-import { User, Task, ShoppingItem, ShoppingCategory, FavoriteTemplate, SmartDevice } from '../types';
+import { User, Task, ShoppingItem, ShoppingCategory, FavoriteTemplate, SmartDevice, SmartCredential } from '../types';
 
 const API_BASE = '/api';
 
@@ -116,6 +116,12 @@ export const apiShopping = {
 // ----------------- Smart Devices API (Switcher, Volcano / Smart Life) -----------------
 export const apiSmartDevices = {
   list: () => request<SmartDevice[]>('/smart-devices'),
+  create: (data: Partial<SmartDevice>) =>
+    request<SmartDevice>('/smart-devices', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<SmartDevice>) =>
+    request<SmartDevice>(`/smart-devices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) =>
+    request<{ success: boolean; id: string }>(`/smart-devices/${id}`, { method: 'DELETE' }),
   toggle: (id: string) => request<SmartDevice>(`/smart-devices/${id}/toggle`, { method: 'POST' }),
   set: (id: string, data: Partial<SmartDevice>) =>
     request<SmartDevice>(`/smart-devices/${id}/set`, {
@@ -124,4 +130,15 @@ export const apiSmartDevices = {
     }),
   runScene: (sceneName: string) =>
     request<SmartDevice[]>(`/smart-devices/scene/${sceneName}`, { method: 'POST' }),
+
+  // Credentials & Real Cloud Connection
+  getCredentials: () => request<SmartCredential[]>('/smart-credentials'),
+  saveCredentials: (service: 'tuya' | 'switcher', config: Record<string, any>, testDeviceId?: string) =>
+    request<{ success: boolean; service: string; is_connected: number; message: string; error?: string }>(
+      '/smart-credentials',
+      {
+        method: 'POST',
+        body: JSON.stringify({ service, config, testDeviceId }),
+      }
+    ),
 };
