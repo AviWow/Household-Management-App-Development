@@ -213,20 +213,6 @@ export function initDb() {
     const devNow = new Date().toISOString();
     const defaultDevices = [
       {
-        id: 'dev-switcher-1',
-        name: 'דוד חשמלי חכם (סוויצ׳ר)',
-        device_type: 'switcher_boiler',
-        room: 'חדר רחצה ראשי',
-        is_on: 0,
-        brightness: 100,
-        color_temp: 'warm',
-        color_hex: '#EF4444',
-        timer_minutes: 30,
-        timer_ends_at: null,
-        current_temp: 46.5,
-        power_watt: 0,
-      },
-      {
         id: 'dev-volcano-1',
         name: 'מנורת סלון חכמה (Volcano Smart Life)',
         device_type: 'volcano_light',
@@ -266,6 +252,12 @@ export function initDb() {
 
   // Mark database initialization completed
   db.prepare("INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('has_seeded_sample_data', 'true')").run();
+
+  // Remove switcher_boiler records per user request to keep only Volcano lights
+  try {
+    db.prepare("DELETE FROM smart_devices WHERE device_type = 'switcher_boiler'").run();
+    db.prepare("DELETE FROM smart_credentials WHERE service = 'switcher'").run();
+  } catch (e) {}
 
   console.log('Database initialized successfully with default records.');
 }

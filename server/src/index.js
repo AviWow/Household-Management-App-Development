@@ -1101,30 +1101,20 @@ app.post('/api/smart-devices/scene/:sceneName', async (req, res) => {
         UPDATE smart_devices
         SET is_on = 0, power_watt = 0, timer_ends_at = NULL, updated_at = ?
       `).run(nowIso);
-    } else if (sceneName === 'shower_ready') {
-      const endsAt = new Date(now.getTime() + 30 * 60000).toISOString();
+    } else if (sceneName === 'relax' || sceneName === 'evening' || sceneName === 'shower_ready') {
       db.prepare(`
         UPDATE smart_devices
-        SET is_on = 1, timer_minutes = 30, timer_ends_at = ?, power_watt = 2500, updated_at = ?
-        WHERE device_type = 'switcher_boiler'
-      `).run(endsAt, nowIso);
+        SET is_on = 1, brightness = 40, color_temp = 'warm', color_hex = '#FFA726', power_watt = 5, updated_at = ?
+      `).run(nowIso);
     } else if (sceneName === 'good_night') {
       db.prepare(`
         UPDATE smart_devices
-        SET is_on = 0, power_watt = 0, timer_ends_at = NULL, updated_at = ?
-        WHERE device_type = 'switcher_boiler'
-      `).run(nowIso);
-
-      db.prepare(`
-        UPDATE smart_devices
-        SET is_on = 1, brightness = 20, color_temp = 'warm', color_hex = '#FFA726', power_watt = 3, updated_at = ?
-        WHERE device_type = 'volcano_light'
+        SET is_on = 1, brightness = 10, color_temp = 'warm', color_hex = '#F43F5E', power_watt = 2, updated_at = ?
       `).run(nowIso);
     } else if (sceneName === 'good_morning') {
       db.prepare(`
         UPDATE smart_devices
-        SET is_on = 1, brightness = 80, color_temp = 'neutral', color_hex = '#FFF3E0', power_watt = 10, updated_at = ?
-        WHERE device_type = 'volcano_light'
+        SET is_on = 1, brightness = 85, color_temp = 'neutral', color_hex = '#FFF3E0', power_watt = 10, updated_at = ?
       `).run(nowIso);
     }
 
