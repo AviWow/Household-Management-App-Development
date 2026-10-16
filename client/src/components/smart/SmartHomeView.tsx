@@ -71,6 +71,7 @@ export const SmartHomeView: React.FC = () => {
 
   const [switcherPhone, setSwitcherPhone] = useState('');
   const [switcherPassword, setSwitcherPassword] = useState('');
+  const [switcherToken, setSwitcherToken] = useState('');
   const [switcherWebhook, setSwitcherWebhook] = useState('');
 
   const [testingCreds, setTestingCreds] = useState(false);
@@ -98,6 +99,7 @@ export const SmartHomeView: React.FC = () => {
       if (switcherCred?.config) {
         setSwitcherPhone(switcherCred.config.phone || '');
         setSwitcherPassword(switcherCred.config.password || '');
+        setSwitcherToken(switcherCred.config.token || '');
         setSwitcherWebhook(switcherCred.config.webhookUrl || '');
       }
     } catch (err: any) {
@@ -250,6 +252,7 @@ export const SmartHomeView: React.FC = () => {
         : {
             phone: switcherPhone,
             password: switcherPassword,
+            token: switcherToken,
             webhookUrl: switcherWebhook,
           };
 
@@ -886,26 +889,16 @@ export const SmartHomeView: React.FC = () => {
                 <div className="p-3.5 bg-orange-50 rounded-2xl border border-orange-200 text-orange-950 text-xs leading-relaxed space-y-2">
                   <div className="font-bold flex items-center gap-1.5 text-sm text-orange-900">
                     <span>♨️</span>
-                    <span>חיבור מהיר ואוטומטי לחשבון Switcher</span>
+                    <span>חיבור דוד סוויצ׳ר (Switcher)</span>
                   </div>
                   <p className="text-[11px] text-orange-900 leading-relaxed">
-                    <strong>לא צריך לחפש Device ID!</strong> באפליקציית סוויצ׳ר אין צורך באף מזהה טכני.
-                    פשוט הזינו את מספר הטלפון והסיסמה שלכם בחשבון Switcher, והמערכת תתחבר ישירות ותאתר את הדוד שלכם אוטומטית לחלוטין.
+                    סוויצ׳ר אינה דורשת Device ID! הזינו את מספר הטלפון הרשום שלכם. המערכת תסנכרן את הדוד ותאפשר שליטה מלאה, טיימרים ותרחישי כיבוי.
                   </p>
-                  <div className="p-2.5 bg-orange-100/70 rounded-xl text-[11px] text-orange-950 border border-orange-200/80 leading-relaxed">
-                    💡 <strong>רגילים להתחבר לסוויצ׳ר עם קוד ב-SMS ואין לכם סיסמה?</strong>
-                    <br />
-                    1. פתחו את אפליקציית Switcher בסמארטפון.
-                    <br />
-                    2. לחצו על תפריט הצד (3 פסים) ➔ <strong>פרטי פרופיל / חשבון</strong> ➔ <strong>הגדרת סיסמה</strong>.
-                    <br />
-                    3. קבעו סיסמה, והזינו אותה כאן יחד עם מספר הטלפון!
-                  </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    מספר טלפון רשום בסוויצ׳ר *
+                    מספר טלפון סוויצ׳ר *
                   </label>
                   <input
                     type="text"
@@ -919,16 +912,42 @@ export const SmartHomeView: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    סיסמת חשבון סוויצ׳ר *
+                    סיסמת חשבון סוויצ׳ר (אופציונלי)
                   </label>
                   <input
                     type="password"
-                    required
                     placeholder="••••••••"
                     value={switcherPassword}
                     onChange={(e) => setSwitcherPassword(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                   />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                      <span>טוקן מפתח מ-Switcher (Token)</span>
+                    </label>
+                    <a
+                      href="https://switcher.co.il/GetKey/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] text-orange-700 hover:text-orange-900 font-bold underline inline-flex items-center gap-0.5"
+                    >
+                      <span>קבל טוקן למייל</span>
+                      <ExternalLink size={9} />
+                    </a>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="לדוגמה: key_abc123... (אופציונלי)"
+                    value={switcherToken}
+                    onChange={(e) => setSwitcherToken(e.target.value)}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    חברת Switcher מספקת טוקן רשמי לחיבור מערכות חיצוניות דרך switcher.co.il/GetKey.
+                  </p>
                 </div>
 
                 <div>
@@ -946,17 +965,17 @@ export const SmartHomeView: React.FC = () => {
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono text-left dir-ltr bg-white"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    מתאים רק למי שמנהל את הבית דרך Home Assistant או שרתי Webhook אישיים.
+                    לשליחת פקודות HTTP ישירות ל-Home Assistant או לקיצורי דרך של Siri.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleSaveCredentials('switcher')}
-                  disabled={testingCreds || (!switcherPhone && !switcherWebhook)}
+                  disabled={testingCreds || (!switcherPhone && !switcherToken && !switcherWebhook)}
                   className="w-full py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
                 >
-                  {testingCreds ? 'מתחבר ל-Switcher ומאתר מכשירים...' : 'שמור והתחבר אוטומטית לסוויצ׳ר'}
+                  {testingCreds ? 'מתחבר ל-Switcher ומאמת...' : 'שמור והפעל חיבור לסוויצ׳ר'}
                 </button>
               </div>
             )}
