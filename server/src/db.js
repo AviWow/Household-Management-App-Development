@@ -305,7 +305,6 @@ export function initDb() {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
-    const now = new Date().toISOString();
     const sampleShopping = [
       // Supermarket
       { id: 's-1', list_type: 'supermarket', category_id: 'produce', name: 'עגבניות שרי מתוקות', quantity: 2, unit: 'pack', is_checked: 0, notes: 'עדיף מגי או תמר', is_fav: 1, user: 'user-1' },
@@ -341,14 +340,14 @@ export function initDb() {
         item.unit,
         item.is_checked,
         item.is_checked ? 'user-1' : null,
-        item.is_checked ? now : null,
+        item.is_checked ? isoNow : null,
         item.notes || '',
         item.url || '',
         item.est_price || null,
         item.is_fav || 0,
         item.user,
-        now,
-        now
+        isoNow,
+        isoNow
       );
     }
   }
