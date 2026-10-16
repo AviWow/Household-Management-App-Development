@@ -1,10 +1,10 @@
 import React from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { CheckSquare, ShoppingCart, Trash2, Users } from 'lucide-react';
+import { CheckSquare, ShoppingCart, Users, Zap } from 'lucide-react';
 
 interface Props {
-  activeTab: 'tasks' | 'shopping';
-  setActiveTab: (tab: 'tasks' | 'shopping') => void;
+  activeTab: 'tasks' | 'shopping' | 'smart';
+  setActiveTab: (tab: 'tasks' | 'shopping' | 'smart') => void;
   openUserModal: () => void;
   openTrash: () => void;
   isTrashOpen: boolean;
@@ -15,9 +15,6 @@ export const BottomNav: React.FC<Props> = ({
   activeTab,
   setActiveTab,
   openUserModal,
-  openTrash,
-  isTrashOpen,
-  trashCount = 0,
 }) => {
   const { t } = useHousehold();
 
@@ -26,24 +23,20 @@ export const BottomNav: React.FC<Props> = ({
       <div className="grid grid-cols-4 items-center justify-around">
         {/* Tasks Button */}
         <button
-          onClick={() => {
-            setActiveTab('tasks');
-          }}
+          onClick={() => setActiveTab('tasks')}
           className={`flex flex-col items-center justify-center py-1.5 transition-colors ${
-            activeTab === 'tasks' && !isTrashOpen
+            activeTab === 'tasks'
               ? 'text-indigo-600 font-bold'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <CheckSquare size={20} strokeWidth={activeTab === 'tasks' && !isTrashOpen ? 2.5 : 2} />
+          <CheckSquare size={20} strokeWidth={activeTab === 'tasks' ? 2.5 : 2} />
           <span className="text-[11px] mt-0.5">{t('מטלות', 'Tasks')}</span>
         </button>
 
         {/* Shopping Button */}
         <button
-          onClick={() => {
-            setActiveTab('shopping');
-          }}
+          onClick={() => setActiveTab('shopping')}
           className={`flex flex-col items-center justify-center py-1.5 transition-colors ${
             activeTab === 'shopping'
               ? 'text-indigo-600 font-bold'
@@ -54,24 +47,17 @@ export const BottomNav: React.FC<Props> = ({
           <span className="text-[11px] mt-0.5">{t('קניות', 'Shopping')}</span>
         </button>
 
-        {/* Trash Button */}
+        {/* Smart Home Button */}
         <button
-          onClick={openTrash}
-          className={`relative flex flex-col items-center justify-center py-1.5 transition-colors ${
-            isTrashOpen
-              ? 'text-rose-600 font-bold'
+          onClick={() => setActiveTab('smart')}
+          className={`flex flex-col items-center justify-center py-1.5 transition-colors ${
+            activeTab === 'smart'
+              ? 'text-amber-500 font-bold'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          <div className="relative">
-            <Trash2 size={20} strokeWidth={isTrashOpen ? 2.5 : 2} />
-            {trashCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {trashCount > 9 ? '9+' : trashCount}
-              </span>
-            )}
-          </div>
-          <span className="text-[11px] mt-0.5">{t('סל מחזור', 'Trash')}</span>
+          <Zap size={20} strokeWidth={activeTab === 'smart' ? 2.5 : 2} className={activeTab === 'smart' ? 'fill-amber-500' : ''} />
+          <span className="text-[11px] mt-0.5">{t('בית חכם', 'Smart')}</span>
         </button>
 
         {/* User / Household button */}

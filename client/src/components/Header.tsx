@@ -1,10 +1,10 @@
 import React from 'react';
 import { useHousehold } from '../context/HouseholdContext';
-import { CheckSquare, ShoppingCart, Users, Globe } from 'lucide-react';
+import { CheckSquare, ShoppingCart, Users, Globe, Zap } from 'lucide-react';
 
 interface Props {
-  activeTab: 'tasks' | 'shopping';
-  setActiveTab: (tab: 'tasks' | 'shopping') => void;
+  activeTab: 'tasks' | 'shopping' | 'smart';
+  setActiveTab: (tab: 'tasks' | 'shopping' | 'smart') => void;
   openUserModal: () => void;
   trashCount?: number;
 }
@@ -31,7 +31,7 @@ export const Header: React.FC<Props> = ({
               {t('משק בית', 'Household')}
             </h1>
             <span className="text-[11px] font-medium text-slate-400">
-              {t('מטלות ורשימות קניות', 'Tasks & Shopping')}
+              {t('מטלות, קניות ובית חכם', 'Tasks, Shopping & Smart')}
             </span>
           </div>
         </div>
@@ -59,6 +59,17 @@ export const Header: React.FC<Props> = ({
           >
             <ShoppingCart size={17} />
             <span>{t('רשימות קניות', 'Shopping Lists')}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('smart')}
+            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all ${
+              activeTab === 'smart'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Zap size={17} className={activeTab === 'smart' ? 'text-amber-500 fill-amber-500' : ''} />
+            <span>{t('בית חכם', 'Smart Home')}</span>
           </button>
         </div>
 

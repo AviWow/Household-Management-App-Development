@@ -92,6 +92,23 @@ export function initDb() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS smart_devices (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      device_type TEXT NOT NULL,
+      room TEXT NOT NULL,
+      is_on INTEGER NOT NULL DEFAULT 0,
+      brightness INTEGER NOT NULL DEFAULT 100,
+      color_temp TEXT NOT NULL DEFAULT 'warm',
+      color_hex TEXT DEFAULT '#FFA726',
+      timer_minutes INTEGER NOT NULL DEFAULT 30,
+      timer_ends_at TEXT,
+      current_temp REAL DEFAULT 46.0,
+      power_watt REAL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   // Seed default users if empty
@@ -164,6 +181,70 @@ export function initDb() {
     const now = new Date().toISOString();
     for (const f of defaultFavorites) {
       insertFav.run(f.id, f.name, f.category_id, f.default_quantity, f.unit, f.icon, now);
+    }
+  }
+
+  // Seed default smart devices (Switcher & Volcano) if empty
+  const devCount = db.prepare('SELECT COUNT(*) as count FROM smart_devices').get().count;
+  if (devCount === 0) {
+    const insertDev = db.prepare(`
+      INSERT INTO smart_devices (
+        id, name, device_type, room, is_on, brightness, color_temp, color_hex,
+        timer_minutes, timer_ends_at, current_temp, power_watt, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const devNow = new Date().toISOString();
+    const defaultDevices = [
+      {
+        id: 'dev-switcher-1',
+        name: 'דוד חשמלי חכם (סוויצ׳ר)',
+        device_type: 'switcher_boiler',
+        room: 'חדר רחצה ראשי',
+        is_on: 0,
+        brightness: 100,
+        color_temp: 'warm',
+        color_hex: '#EF4444',
+        timer_minutes: 30,
+        timer_ends_at: null,
+        current_temp: 46.5,
+        power_watt: 0,
+      },
+      {
+        id: 'dev-volcano-1',
+        name: 'מנורת סלון חכמה (Volcano Smart Life)',
+        device_type: 'volcano_light',
+        room: 'סלון',
+        is_on: 1,
+        brightness: 85,
+        color_temp: 'warm',
+        color_hex: '#FFA726',
+        timer_minutes: 0,
+        timer_ends_at: null,
+        current_temp: null,
+        power_watt: 12,
+      },
+      {
+        id: 'dev-volcano-2',
+        name: 'מנורת חדר שינה (Volcano Smart Life)',
+        device_type: 'volcano_light',
+        room: 'חדר שינה',
+        is_on: 0,
+        brightness: 50,
+        color_temp: 'neutral',
+        color_hex: '#FFE082',
+        timer_minutes: 0,
+        timer_ends_at: null,
+        current_temp: null,
+        power_watt: 0,
+      },
+    ];
+
+    for (const d of defaultDevices) {
+      insertDev.run(
+        d.id, d.name, d.device_type, d.room, d.is_on, d.brightness, d.color_temp, d.color_hex,
+        d.timer_minutes, d.timer_ends_at, d.current_temp, d.power_watt, devNow, devNow
+      );
     }
   }
 

@@ -825,6 +825,195 @@ app.post('/api/shopping/favorites/:id/add-to-list', (req, res) => {
   }
 });
 
+// ----------------------------------------------------
+// SMART DEVICES ROUTES (Switcher, Volcano / Smart Life)
+// ----------------------------------------------------
+
+// Auto-check expired timers helper
+function checkExpiredTimers() {
+  try {
+    const nowIso = new Date().toISOString();
+    db.prepare(`
+      UPDATE smart_devices
+      SET is_on = 0, power_watt = 0, timer_ends_at = NULL, updated_at = ?
+      WHERE timer_ends_at IS NOT NULL AND timer_ends_at <= ?
+    `).run(nowIso, nowIso);
+  } catch (err) {
+    console.error('Error checking expired timers:', err);
+  }
+}
+
+// Run expired timer check periodically every 15 seconds
+setInterval(checkExpiredTimers, 15000);
+
+app.get('/api/smart-devices', (req, res) => {
+  try {
+    checkExpiredTimers();
+    const devices = db.prepare('SELECT * FROM smart_devices ORDER BY device_type DESC, created_at ASC').all();
+    res.json(devices);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/smart-devices/:id/toggle', (req, res) => {
+  try {
+    const { id } = req.params;
+    const dev = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
+    if (!dev) return res.status(404).json({ error: 'Device not found' });
+
+    const newIsOn = dev.is_on ? 0 : 1;
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    let timerEndsAt = null;
+    let powerWatt = 0;
+    let currentTemp = dev.current_temp;
+
+    if (newIsOn) {
+      if (dev.device_type === 'switcher_boiler') {
+        const durationMins = dev.timer_minutes || 30;
+        timerEndsAt = new Date(now.getTime() + durationMins * 60000).toISOString();
+        powerWatt = 2500; // Typical 2.5 kW electric water boiler element
+      } else if (dev.device_type === 'volcano_light') {
+        powerWatt = Math.round(12 * (dev.brightness / 100)); // ~12W LED bulb
+      } else {
+        powerWatt = 100;
+      }
+    } else {
+      timerEndsAt = null;
+      powerWatt = 0;
+    }
+
+    db.prepare(`
+      UPDATE smart_devices
+      SET is_on = ?, timer_ends_at = ?, power_watt = ?, updated_at = ?
+      WHERE id = ?
+    `).run(newIsOn, timerEndsAt, powerWatt, nowIso, id);
+
+    const updated = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/smart-devices/:id/set', (req, res) => {
+  try {
+    const { id } = req.params;
+    const dev = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
+    if (!dev) return res.status(404).json({ error: 'Device not found' });
+
+    const {
+      is_on,
+      brightness,
+      color_temp,
+      color_hex,
+      timer_minutes
+    } = req.body;
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    const targetIsOn = is_on !== undefined ? (is_on ? 1 : 0) : dev.is_on;
+    const targetBrightness = brightness !== undefined ? Number(brightness) : dev.brightness;
+    const targetColorTemp = color_temp !== undefined ? color_temp : dev.color_temp;
+    const targetColorHex = color_hex !== undefined ? color_hex : dev.color_hex;
+    const targetTimerMins = timer_minutes !== undefined ? Number(timer_minutes) : dev.timer_minutes;
+
+    let timerEndsAt = dev.timer_ends_at;
+    let powerWatt = dev.power_watt;
+
+    if (dev.device_type === 'switcher_boiler') {
+      if (targetIsOn) {
+        timerEndsAt = new Date(now.getTime() + targetTimerMins * 60000).toISOString();
+        powerWatt = 2500;
+      } else {
+        timerEndsAt = null;
+        powerWatt = 0;
+      }
+    } else if (dev.device_type === 'volcano_light') {
+      if (targetIsOn) {
+        powerWatt = Math.max(1, Math.round(12 * (targetBrightness / 100)));
+      } else {
+        powerWatt = 0;
+      }
+    }
+
+    db.prepare(`
+      UPDATE smart_devices
+      SET is_on = ?, brightness = ?, color_temp = ?, color_hex = ?,
+          timer_minutes = ?, timer_ends_at = ?, power_watt = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      targetIsOn,
+      targetBrightness,
+      targetColorTemp,
+      targetColorHex,
+      targetTimerMins,
+      timerEndsAt,
+      powerWatt,
+      nowIso,
+      id
+    );
+
+    const updated = db.prepare('SELECT * FROM smart_devices WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Master Scenes (e.g. 'all_off', 'shower_ready', 'good_night', 'good_morning')
+app.post('/api/smart-devices/scene/:sceneName', (req, res) => {
+  try {
+    const { sceneName } = req.params;
+    const now = new Date();
+    const nowIso = now.toISOString();
+
+    if (sceneName === 'all_off' || sceneName === 'leaving_home') {
+      // Turn off everything
+      db.prepare(`
+        UPDATE smart_devices
+        SET is_on = 0, power_watt = 0, timer_ends_at = NULL, updated_at = ?
+      `).run(nowIso);
+    } else if (sceneName === 'shower_ready') {
+      // Turn on boiler for 30 minutes, soft warm light
+      const endsAt = new Date(now.getTime() + 30 * 60000).toISOString();
+      db.prepare(`
+        UPDATE smart_devices
+        SET is_on = 1, timer_minutes = 30, timer_ends_at = ?, power_watt = 2500, updated_at = ?
+        WHERE device_type = 'switcher_boiler'
+      `).run(endsAt, nowIso);
+    } else if (sceneName === 'good_night') {
+      // Turn off boiler, dim volcano lights to warm 20%
+      db.prepare(`
+        UPDATE smart_devices
+        SET is_on = 0, power_watt = 0, timer_ends_at = NULL, updated_at = ?
+        WHERE device_type = 'switcher_boiler'
+      `).run(nowIso);
+
+      db.prepare(`
+        UPDATE smart_devices
+        SET is_on = 1, brightness = 20, color_temp = 'warm', color_hex = '#FFA726', power_watt = 3, updated_at = ?
+        WHERE device_type = 'volcano_light'
+      `).run(nowIso);
+    } else if (sceneName === 'good_morning') {
+      // Turn on lights to neutral 80%
+      db.prepare(`
+        UPDATE smart_devices
+        SET is_on = 1, brightness = 80, color_temp = 'neutral', color_hex = '#FFF3E0', power_watt = 10, updated_at = ?
+        WHERE device_type = 'volcano_light'
+      `).run(nowIso);
+    }
+
+    const allDevices = db.prepare('SELECT * FROM smart_devices ORDER BY device_type DESC, created_at ASC').all();
+    res.json(allDevices);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Status check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });

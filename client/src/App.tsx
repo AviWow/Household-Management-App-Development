@@ -4,10 +4,11 @@ import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { TasksView } from './components/tasks/TasksView';
 import { ShoppingView } from './components/shopping/ShoppingView';
+import { SmartHomeView } from './components/smart/SmartHomeView';
 import { UserSwitcherModal } from './components/UserSwitcherModal';
 
 const AppContent: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'tasks' | 'shopping'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'shopping' | 'smart'>('tasks');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
 
@@ -27,8 +28,10 @@ const AppContent: React.FC = () => {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 pt-5 pb-6">
         {activeTab === 'tasks' ? (
           <TasksView isTrashOpenInitially={isTrashOpen} />
-        ) : (
+        ) : activeTab === 'shopping' ? (
           <ShoppingView />
+        ) : (
+          <SmartHomeView />
         )}
       </main>
 

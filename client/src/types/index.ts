@@ -91,3 +91,23 @@ export interface FavoriteTemplate {
   category_icon?: string;
   category_color?: string;
 }
+
+export type SmartDeviceType = 'switcher_boiler' | 'volcano_light' | 'smart_plug';
+export type LightColorTemp = 'warm' | 'neutral' | 'cool';
+
+export interface SmartDevice {
+  id: string;
+  name: string;
+  device_type: SmartDeviceType;
+  room: string;
+  is_on: number;
+  brightness: number;
+  color_temp: LightColorTemp;
+  color_hex?: string | null;
+  timer_minutes: number;
+  timer_ends_at?: string | null;
+  current_temp?: number | null;
+  power_watt?: number | null;
+  created_at: string;
+  updated_at: string;
+}

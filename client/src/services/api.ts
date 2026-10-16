@@ -1,4 +1,4 @@
-import { User, Task, ShoppingItem, ShoppingCategory, FavoriteTemplate } from '../types';
+import { User, Task, ShoppingItem, ShoppingCategory, FavoriteTemplate, SmartDevice } from '../types';
 
 const API_BASE = '/api';
 
@@ -111,4 +111,17 @@ export const apiShopping = {
       method: 'POST',
       body: JSON.stringify({ user_id, quantity }),
     }),
+};
+
+// ----------------- Smart Devices API (Switcher, Volcano / Smart Life) -----------------
+export const apiSmartDevices = {
+  list: () => request<SmartDevice[]>('/smart-devices'),
+  toggle: (id: string) => request<SmartDevice>(`/smart-devices/${id}/toggle`, { method: 'POST' }),
+  set: (id: string, data: Partial<SmartDevice>) =>
+    request<SmartDevice>(`/smart-devices/${id}/set`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  runScene: (sceneName: string) =>
+    request<SmartDevice[]>(`/smart-devices/scene/${sceneName}`, { method: 'POST' }),
 };
