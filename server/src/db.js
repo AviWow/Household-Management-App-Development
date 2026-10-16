@@ -87,6 +87,11 @@ export function initDb() {
       icon TEXT DEFAULT '⭐',
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 
   // Seed default users if empty
@@ -162,9 +167,13 @@ export function initDb() {
     }
   }
 
-  // Seed sample tasks if empty
-  const tasksCount = db.prepare('SELECT COUNT(*) as count FROM tasks').get().count;
-  if (tasksCount === 0) {
+  // Only seed sample tasks and sample shopping items ONCE ever upon fresh setup.
+  // Never re-seed if the user cleared items or already has their own data!
+  const hasSeededMeta = db.prepare("SELECT value FROM app_metadata WHERE key = 'has_seeded_sample_data'").get();
+  const existingTasksCount = db.prepare('SELECT COUNT(*) as count FROM tasks').get().count;
+  const existingShoppingCount = db.prepare('SELECT COUNT(*) as count FROM shopping_items').get().count;
+
+  if (!hasSeededMeta && existingTasksCount === 0 && existingShoppingCount === 0) {
     const insertTask = db.prepare(`
       INSERT INTO tasks (
         id, title, description, task_type, recurrence_interval, recurrence_details,
@@ -288,11 +297,7 @@ export function initDb() {
         db.prepare('UPDATE tasks SET deleted_at = ? WHERE id = ?').run(t.deleted_at, t.id);
       }
     }
-  }
 
-  // Seed sample shopping items across lists if empty
-  const shoppingCount = db.prepare('SELECT COUNT(*) as count FROM shopping_items').get().count;
-  if (shoppingCount === 0) {
     const insertShop = db.prepare(`
       INSERT INTO shopping_items (
         id, list_type, category_id, name, quantity, unit, is_checked, checked_by, checked_at,
@@ -347,6 +352,9 @@ export function initDb() {
       );
     }
   }
+
+  // Always mark that database initialization/seeding check has completed so sample data is NEVER re-inserted
+  db.prepare("INSERT OR REPLACE INTO app_metadata (key, value) VALUES ('has_seeded_sample_data', 'true')").run();
 
   console.log('Database initialized successfully with default records.');
 }

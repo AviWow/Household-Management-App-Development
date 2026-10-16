@@ -21,9 +21,11 @@ export const Header: React.FC<Props> = ({
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
         {/* Logo & Brand */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 text-white flex items-center justify-center text-xl shadow-md shadow-indigo-500/20">
-            🏠
-          </div>
+          <img
+            src="/icon.svg"
+            alt="לוגו ניהול בית"
+            className="w-10 h-10 rounded-2xl shadow-md shadow-rose-500/20 object-contain hover:scale-105 transition-transform"
+          />
           <div>
             <h1 className="text-base sm:text-lg font-black text-slate-800 tracking-tight leading-none">
               {t('משק בית', 'Household')}

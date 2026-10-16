@@ -1,0 +1,367 @@
+import fs from 'fs';
+import path from 'path';
+import sharp from 'sharp';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+
+// 512x512 Master SVG Icon
+// Blends the charming organic tomato cottage from the user's reference
+// with unmistakable house architectural elements (gable roof, chimney with sprout,
+// glowing windows with flower boxes, arched wooden door with stone arch, welcoming steps)
+// all presented inside a warm cream iOS app squircle.
+const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Squircle Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFDF9" />
+      <stop offset="100%" stop-color="#FCEFD8" />
+    </linearGradient>
+
+    <!-- Outer Soft Border / Shadow -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#F0DCBC" stop-opacity="0.9" />
+    </linearGradient>
+
+    <!-- Tomato Red House Walls Gradient -->
+    <linearGradient id="wallGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF5252" />
+      <stop offset="45%" stop-color="#E53935" />
+      <stop offset="100%" stop-color="#B71C1C" />
+    </linearGradient>
+
+    <!-- Roof Gradient - Rich Terracotta Tomato Crimson -->
+    <linearGradient id="roofGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B6B" />
+      <stop offset="40%" stop-color="#E53935" />
+      <stop offset="100%" stop-color="#A71212" />
+    </linearGradient>
+
+    <!-- Eaves Trim Gradient -->
+    <linearGradient id="eavesGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3E0" />
+      <stop offset="100%" stop-color="#FFE0B2" />
+    </linearGradient>
+
+    <!-- Calyx & Leaves Gradient (Vibrant organic green from tomato) -->
+    <linearGradient id="leafGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ADE80" />
+      <stop offset="60%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#15803D" />
+    </linearGradient>
+
+    <linearGradient id="leafGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#86EFAC" />
+      <stop offset="50%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <!-- Wooden Arched Door Gradient -->
+    <linearGradient id="doorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B45309" />
+      <stop offset="50%" stop-color="#92400E" />
+      <stop offset="100%" stop-color="#78350F" />
+    </linearGradient>
+
+    <!-- Window Warm Glow Gradient -->
+    <radialGradient id="windowGlow" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#FFFBEB" />
+      <stop offset="60%" stop-color="#FEF08A" />
+      <stop offset="100%" stop-color="#FDE047" />
+    </radialGradient>
+
+    <!-- Chimney Gradient -->
+    <linearGradient id="chimneyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#C53030" />
+      <stop offset="50%" stop-color="#E53E3E" />
+      <stop offset="100%" stop-color="#9B2C2C" />
+    </linearGradient>
+
+    <!-- Drop Shadows -->
+    <filter id="shadowFilter" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#884A22" flood-opacity="0.18" />
+    </filter>
+
+    <filter id="roofShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#550A0A" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- iOS Icon Background Squircle (Apple 112px radius standard at 512px) -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <rect x="2" y="2" width="508" height="508" rx="110" fill="none" stroke="url(#borderGrad)" stroke-width="4" />
+
+  <!-- Ground Soft Shadow -->
+  <ellipse cx="256" cy="446" rx="170" ry="22" fill="#996B42" opacity="0.16" />
+  <ellipse cx="256" cy="444" rx="135" ry="14" fill="#693B16" opacity="0.12" />
+
+  <!-- MAIN HOUSE GROUP WITH SHADOW -->
+  <g filter="url(#shadowFilter)">
+    
+    <!-- Chimney with leafy sprout -->
+    <g>
+      <rect x="330" y="145" width="42" height="85" rx="8" fill="url(#chimneyGrad)" />
+      <!-- Chimney Cap -->
+      <rect x="324" y="138" width="54" height="15" rx="6" fill="#7F1D1D" />
+      <!-- Tiny leafy sprout puff emerging from chimney -->
+      <path d="M351 138 C 342 120, 335 106, 348 94 C 358 104, 357 122, 351 138 Z" fill="url(#leafGrad2)" />
+      <path d="M351 138 C 362 122, 372 112, 378 122 C 375 133, 362 136, 351 138 Z" fill="url(#leafGrad1)" />
+    </g>
+
+    <!-- House Main Walls (Rounded tomato cottage architecture) -->
+    <path d="
+      M 116 260
+      C 105 320, 108 395, 126 422
+      C 134 434, 150 438, 172 438
+      L 340 438
+      C 362 438, 378 434, 386 422
+      C 404 395, 407 320, 396 260
+      Z
+    " fill="url(#wallGrad)" />
+
+    <!-- Soft 3D Wall Highlight (Tomato plumpness & warmth) -->
+    <path d="
+      M 124 270
+      C 114 325, 118 390, 134 415
+      C 137 420, 145 423, 155 423
+      C 135 390, 132 320, 142 270
+      Z
+    " fill="#FFFFFF" opacity="0.22" />
+
+    <!-- Gable Cottage Roof (Gives it unmistakable HOUSE shape while keeping tomato roof crown) -->
+    <g filter="url(#roofShadow)">
+      <!-- Main Roof Triangle / Arch with curved cozy cottage eaves -->
+      <path d="
+        M 256 128
+        C 285 130, 380 185, 428 252
+        C 434 260, 428 272, 417 272
+        C 390 272, 382 258, 358 254
+        L 256 244
+        L 154 254
+        C 130 258, 122 272, 95 272
+        C 84 272, 78 260, 84 252
+        C 132 185, 227 130, 256 128
+        Z
+      " fill="url(#roofGrad)" />
+
+      <!-- Roof trim / cozy scalloped eave line -->
+      <path d="
+        M 86 262
+        Q 256 226 426 262
+        L 420 274
+        Q 256 238 92 274
+        Z
+      " fill="url(#eavesGrad)" />
+    </g>
+
+    <!-- TOP TOMATO CROWN: CALYX & SPROUT (Direct homage to the reference image) -->
+    <!-- Center calyx star leaves draping gracefully over the roof peak -->
+    <!-- Left Leaf -->
+    <path d="
+      M 256 142
+      C 220 135, 182 148, 170 162
+      C 182 170, 218 166, 250 152
+      Z
+    " fill="url(#leafGrad1)" />
+
+    <!-- Far Left Hanging Calyx Leaf -->
+    <path d="
+      M 248 146
+      C 205 155, 185 186, 180 206
+      C 194 200, 222 178, 252 154
+      Z
+    " fill="url(#leafGrad2)" />
+
+    <!-- Right Leaf -->
+    <path d="
+      M 256 142
+      C 292 135, 330 148, 342 162
+      C 330 170, 294 166, 262 152
+      Z
+    " fill="url(#leafGrad1)" />
+
+    <!-- Far Right Hanging Calyx Leaf -->
+    <path d="
+      M 264 146
+      C 307 155, 327 186, 332 206
+      C 318 200, 290 178, 260 154
+      Z
+    " fill="url(#leafGrad2)" />
+
+    <!-- Center Sprout / Stem (Curled tomato stem like in reference) -->
+    <path d="
+      M 252 144
+      C 250 120, 246 95, 262 82
+      C 274 72, 290 76, 292 90
+      C 294 102, 276 108, 266 114
+      C 260 120, 260 135, 260 144
+      Z
+    " fill="url(#leafGrad1)" />
+    
+    <!-- Top Leaf on the stem -->
+    <path d="
+      M 262 88
+      C 254 70, 238 65, 226 72
+      C 226 84, 244 92, 260 92
+      Z
+    " fill="url(#leafGrad2)" />
+
+    <!-- Attic / Dormer Circular Window (Classic cottage feature) -->
+    <circle cx="256" cy="202" r="23" fill="#FFE0B2" stroke="#FFFFFF" stroke-width="3" />
+    <circle cx="256" cy="202" r="18" fill="url(#windowGlow)" />
+    <!-- Mullion Cross -->
+    <line x1="256" y1="184" x2="256" y2="220" stroke="#B45309" stroke-width="2.5" />
+    <line x1="238" y1="202" x2="274" y2="202" stroke="#B45309" stroke-width="2.5" />
+
+    <!-- FRONT DOORWAY (Cozy Arched Wooden Door with Stone Frame) -->
+    <!-- Stone Door Trim / Arch -->
+    <path d="
+      M 216 438
+      L 216 342
+      C 216 314, 296 314, 296 342
+      L 296 438
+      Z
+    " fill="#FFF3E0" stroke="#F6D8AE" stroke-width="3" />
+
+    <!-- Wooden Door Body -->
+    <path d="
+      M 223 438
+      L 223 346
+      C 223 324, 289 324, 289 346
+      L 289 438
+      Z
+    " fill="url(#doorGrad)" />
+
+    <!-- Door Wood Planks lines -->
+    <line x1="245" y1="332" x2="245" y2="438" stroke="#5E2605" stroke-width="2" opacity="0.6" />
+    <line x1="267" y1="332" x2="267" y2="438" stroke="#5E2605" stroke-width="2" opacity="0.6" />
+
+    <!-- Small Arched Window on the Door -->
+    <path d="
+      M 246 362
+      L 246 350
+      C 246 342, 266 342, 266 350
+      L 266 362
+      Z
+    " fill="url(#windowGlow)" stroke="#FEF08A" stroke-width="1.5" />
+
+    <!-- Golden Door Knob -->
+    <circle cx="233" cy="392" r="5" fill="#FBBF24" stroke="#D97706" stroke-width="1.5" />
+    <circle cx="232" cy="390" r="1.5" fill="#FFFBEB" />
+
+    <!-- Welcome Step Stones -->
+    <rect x="210" y="434" width="92" height="10" rx="5" fill="#E2E8F0" stroke="#CBD5E1" stroke-width="1.5" />
+    <rect x="202" y="440" width="108" height="8" rx="4" fill="#CBD5E1" />
+
+    <!-- LEFT COTTAGE WINDOW WITH FLOWER BOX -->
+    <g>
+      <!-- Window Frame (Arched) -->
+      <rect x="144" y="324" width="46" height="56" rx="8" fill="#FFF8E7" stroke="#FFE0B2" stroke-width="2.5" />
+      <rect x="148" y="328" width="38" height="48" rx="5" fill="url(#windowGlow)" />
+      <!-- Mullions -->
+      <line x1="167" y1="328" x2="167" y2="376" stroke="#92400E" stroke-width="2.5" />
+      <line x1="148" y1="352" x2="186" y2="352" stroke="#92400E" stroke-width="2.5" />
+      <!-- Flower Box (Green garden cottage charm) -->
+      <rect x="140" y="376" width="54" height="12" rx="4" fill="#15803D" />
+      <!-- Blossoms -->
+      <circle cx="148" cy="374" r="5" fill="#F43F5E" />
+      <circle cx="148" cy="374" r="2" fill="#FEF08A" />
+      <circle cx="158" cy="372" r="5.5" fill="#FB923C" />
+      <circle cx="158" cy="372" r="2" fill="#FFFBEB" />
+      <circle cx="168" cy="374" r="5" fill="#EC4899" />
+      <circle cx="168" cy="374" r="2" fill="#FEF08A" />
+      <circle cx="178" cy="372" r="5.5" fill="#F43F5E" />
+      <circle cx="178" cy="372" r="2" fill="#FFFBEB" />
+      <circle cx="186" cy="374" r="4.5" fill="#FB923C" />
+      <circle cx="186" cy="374" r="1.5" fill="#FFFBEB" />
+    </g>
+
+    <!-- RIGHT COTTAGE WINDOW WITH FLOWER BOX -->
+    <g>
+      <!-- Window Frame (Arched) -->
+      <rect x="322" y="324" width="46" height="56" rx="8" fill="#FFF8E7" stroke="#FFE0B2" stroke-width="2.5" />
+      <rect x="326" y="328" width="38" height="48" rx="5" fill="url(#windowGlow)" />
+      <!-- Mullions -->
+      <line x1="345" y1="328" x2="345" y2="376" stroke="#92400E" stroke-width="2.5" />
+      <line x1="326" y1="352" x2="364" y2="352" stroke="#92400E" stroke-width="2.5" />
+      <!-- Flower Box -->
+      <rect x="318" y="376" width="54" height="12" rx="4" fill="#15803D" />
+      <!-- Blossoms -->
+      <circle cx="326" cy="374" r="5" fill="#F43F5E" />
+      <circle cx="326" cy="374" r="2" fill="#FEF08A" />
+      <circle cx="336" cy="372" r="5.5" fill="#FB923C" />
+      <circle cx="336" cy="372" r="2" fill="#FFFBEB" />
+      <circle cx="346" cy="374" r="5" fill="#EC4899" />
+      <circle cx="346" cy="374" r="2" fill="#FEF08A" />
+      <circle cx="356" cy="372" r="5.5" fill="#F43F5E" />
+      <circle cx="356" cy="372" r="2" fill="#FFFBEB" />
+      <circle cx="364" cy="374" r="4.5" fill="#FB923C" />
+      <circle cx="364" cy="374" r="1.5" fill="#FFFBEB" />
+    </g>
+
+    <!-- Cute potted shrub beside the front door -->
+    <g>
+      <!-- Small terracotta pot -->
+      <polygon points="198,422 208,422 206,436 200,436" fill="#EA580C" />
+      <!-- Shrub round foliage -->
+      <circle cx="203" cy="416" r="8" fill="url(#leafGrad1)" />
+      <circle cx="203" cy="416" r="3" fill="#86EFAC" opacity="0.6" />
+    </g>
+    <g>
+      <!-- Small terracotta pot right side -->
+      <polygon points="304,422 314,422 312,436 306,436" fill="#EA580C" />
+      <!-- Shrub round foliage -->
+      <circle cx="309" cy="416" r="8" fill="url(#leafGrad1)" />
+      <circle cx="309" cy="416" r="3" fill="#86EFAC" opacity="0.6" />
+    </g>
+
+  </g>
+</svg>`;
+
+async function generate() {
+  console.log('Writing icon.svg...');
+  const svgPath = path.join(publicDir, 'icon.svg');
+  const faviconSvgPath = path.join(publicDir, 'favicon.svg');
+  fs.writeFileSync(svgPath, svgContent);
+  fs.writeFileSync(faviconSvgPath, svgContent);
+
+  const svgBuffer = Buffer.from(svgContent);
+
+  console.log('Generating apple-touch-icon.png (180x180)...');
+  await sharp(svgBuffer)
+    .resize(180, 180)
+    .png()
+    .toFile(path.join(publicDir, 'apple-touch-icon.png'));
+
+  console.log('Generating icon-192.png...');
+  await sharp(svgBuffer)
+    .resize(192, 192)
+    .png()
+    .toFile(path.join(publicDir, 'icon-192.png'));
+
+  console.log('Generating icon-512.png...');
+  await sharp(svgBuffer)
+    .resize(512, 512)
+    .png()
+    .toFile(path.join(publicDir, 'icon-512.png'));
+
+  console.log('Generating favicon-32x32.png...');
+  await sharp(svgBuffer)
+    .resize(32, 32)
+    .png()
+    .toFile(path.join(publicDir, 'favicon-32x32.png'));
+
+  console.log('All icons generated successfully!');
+}
+
+generate().catch((err) => {
+  console.error('Error generating icons:', err);
+  process.exit(1);
+});

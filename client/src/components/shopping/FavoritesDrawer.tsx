@@ -123,10 +123,10 @@ export const FavoritesDrawer: React.FC<Props> = ({
                       : 'bg-amber-50/40 border-amber-200/60 hover:bg-amber-50 hover:border-amber-300'
                   }`}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-base">{fav.icon || '⭐'}</span>
-                    <div className="truncate">
-                      <div className="text-xs font-bold text-slate-800 truncate" title={fav.name}>
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-base flex-shrink-0">{fav.icon || '⭐'}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-800 break-words leading-tight" title={fav.name}>
                         {fav.name}
                       </div>
                       <div className="text-[10px] text-slate-500">

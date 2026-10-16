@@ -582,7 +582,7 @@ const ShoppingItemRow: React.FC<RowProps> = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span
-              className={`text-sm font-bold truncate ${
+              className={`text-sm font-bold break-words leading-snug ${
                 item.is_checked ? 'line-through text-slate-400' : 'text-slate-800'
               }`}
             >
@@ -590,14 +590,14 @@ const ShoppingItemRow: React.FC<RowProps> = ({
             </span>
 
             {/* Price badge if available (e.g. general / bargain) */}
-            {item.estimated_price && (
+            {Boolean(item.estimated_price) && (
               <span className="text-[11px] font-bold px-2 py-0.2 rounded-full bg-slate-100 text-slate-600">
                 ₪{item.estimated_price}
               </span>
             )}
 
             {/* URL button if available (AliExpress link) */}
-            {item.url && (
+            {Boolean(item.url) && (
               <a
                 href={item.url}
                 target="_blank"
@@ -612,13 +612,13 @@ const ShoppingItemRow: React.FC<RowProps> = ({
           </div>
 
           {/* Notes */}
-          {item.notes && (
-            <p className="text-xs text-slate-500 mt-0.5 truncate">{item.notes}</p>
+          {Boolean(item.notes) && (
+            <p className="text-xs text-slate-500 mt-0.5 break-words">{item.notes}</p>
           )}
 
           {/* Checked by attribution */}
-          {item.is_checked && item.checker_name && (
-            <span className="text-[10px] text-emerald-600 font-medium">
+          {Boolean(item.is_checked) && Boolean(item.checker_name) && (
+            <span className="text-[10px] text-emerald-600 font-medium block mt-0.5">
               ✓ {t('נאסף ע״י', 'Collected by')} {item.checker_name}
             </span>
           )}
