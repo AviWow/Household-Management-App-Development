@@ -314,14 +314,26 @@ export const SmartHomeView: React.FC = () => {
                   setShowSettingsModal(true);
                 }}
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition-transform hover:scale-105 ${
-                  switcherCred?.is_connected
+                  switcherCred?.config?.webhookUrl
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : switcherCred?.is_connected
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                     : 'bg-white/10 text-slate-300 border border-white/10 hover:bg-white/15'
                 }`}
                 title="לחץ להגדרת חיבור Switcher"
               >
-                {switcherCred?.is_connected ? <Wifi size={13} className="text-emerald-400" /> : <WifiOff size={13} />}
-                <span>{switcherCred?.is_connected ? 'סוויצ׳ר: מחובר לענן' : 'סוויצ׳ר: לחץ לחיבור'}</span>
+                {switcherCred?.config?.webhookUrl ? (
+                  <Wifi size={13} className="text-emerald-400" />
+                ) : (
+                  <WifiOff size={13} className={switcherCred?.is_connected ? 'text-amber-300' : 'text-slate-400'} />
+                )}
+                <span>
+                  {switcherCred?.config?.webhookUrl
+                    ? 'סוויצ׳ר: מקושר פיזית (Webhook)'
+                    : switcherCred?.is_connected
+                    ? 'סוויצ׳ר: טיימר וירטואלי'
+                    : 'סוויצ׳ר: לחץ לחיבור'}
+                </span>
               </span>
 
               <span
@@ -483,10 +495,15 @@ export const SmartHomeView: React.FC = () => {
               <SwitcherBoilerCard
                 key={device.id}
                 device={device}
+                isWebhookLinked={Boolean(switcherCred?.config?.webhookUrl)}
                 onToggle={() => handleToggle(device)}
                 onUpdate={(patch) => handleUpdateDevice(device.id, patch)}
                 onEdit={() => handleOpenEditDevice(device)}
                 onDelete={() => handleDeleteDevice(device)}
+                onOpenSettings={() => {
+                  setCredTab('switcher');
+                  setShowSettingsModal(true);
+                }}
               />
             );
           } else {
@@ -886,14 +903,22 @@ export const SmartHomeView: React.FC = () => {
             {/* SWITCHER FORM */}
             {credTab === 'switcher' && (
               <div className="space-y-4">
-                <div className="p-3.5 bg-orange-50 rounded-2xl border border-orange-200 text-orange-950 text-xs leading-relaxed space-y-2">
-                  <div className="font-bold flex items-center gap-1.5 text-sm text-orange-900">
-                    <span>♨️</span>
-                    <span>חיבור דוד סוויצ׳ר (Switcher)</span>
+                <div className="p-3.5 bg-amber-50/90 rounded-2xl border border-amber-200 text-amber-950 text-xs leading-relaxed space-y-2">
+                  <div className="font-bold flex items-center gap-1.5 text-sm text-amber-900">
+                    <span>💡</span>
+                    <span>איך לחבר את הדוד הפיזי שעל הקיר?</span>
                   </div>
-                  <p className="text-[11px] text-orange-900 leading-relaxed">
-                    סוויצ׳ר אינה דורשת Device ID! הזינו את מספר הטלפון הרשום שלכם. המערכת תסנכרן את הדוד ותאפשר שליטה מלאה, טיימרים ותרחישי כיבוי.
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    מתגי סוויצ׳ר פועלים ברשת המקומית (Wi-Fi ביתי בלבד) ואינם מאפשרים לאתרים חיצוניים בענן להפעיל ישירות את החשמל ללא גישור.
                   </p>
+                  <div className="space-y-1.5 text-[11px] text-amber-950 pt-1">
+                    <div className="p-2 bg-white/80 rounded-xl border border-amber-200/60">
+                      <strong>1. חיבור פיזי באמצעות Webhook:</strong> הזינו למטה קישור Webhook (לדוגמה מ-Home Assistant, IFTTT, או קיצור דרך של Siri/גוגל) – וכל לחיצה תפעיל את הממסר החשמלי הפיזי!
+                    </div>
+                    <div className="p-2 bg-white/80 rounded-xl border border-amber-200/60">
+                      <strong>2. טיימר וירטואלי חכם באפליקציה:</strong> ללא Webhook, המערכת משמשת כטיימר חכם לניהול זמני מקלחת, מעקב צריכת חשמל ותרחישי כיבוי.
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -991,18 +1016,22 @@ export const SmartHomeView: React.FC = () => {
  * ------------------------------------------------------------------------------------- */
 interface BoilerCardProps {
   device: SmartDevice;
+  isWebhookLinked?: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<SmartDevice>) => void;
   onEdit: () => void;
   onDelete: () => void;
+  onOpenSettings?: () => void;
 }
 
 const SwitcherBoilerCard: React.FC<BoilerCardProps> = ({
   device,
+  isWebhookLinked,
   onToggle,
   onUpdate,
   onEdit,
   onDelete,
+  onOpenSettings,
 }) => {
   const { t } = useHousehold();
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -1061,17 +1090,18 @@ const SwitcherBoilerCard: React.FC<BoilerCardProps> = ({
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                   {device.room}
                 </span>
-                {device.real_device_id ? (
+                {isWebhookLinked ? (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
                     <Wifi size={10} />
-                    <span>ID: {device.real_device_id}</span>
+                    <span>שליטה פיזית (Webhook)</span>
                   </span>
                 ) : (
                   <span
-                    onClick={onEdit}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200"
+                    onClick={onOpenSettings}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 cursor-pointer hover:bg-amber-200 flex items-center gap-1 transition-colors"
+                    title="לחץ כאן כדי להבין כיצד לחבר את הדוד הפיזי"
                   >
-                    + קשר מכשיר פיזי
+                    <span>⚡ טיימר וירטואלי (לחץ להסבר פיזי)</span>
                   </span>
                 )}
               </div>
