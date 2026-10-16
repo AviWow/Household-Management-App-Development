@@ -620,31 +620,59 @@ export const SmartHomeView: React.FC = () => {
               </div>
 
               {/* Real Hardware ID Link */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Wifi size={14} className="text-indigo-600" />
-                    <span>{t('מזהה מכשיר אמיתי (Device ID)', 'Real Hardware Device ID')}</span>
-                  </label>
-                  <span className="text-[10px] text-slate-400">אופציונלי</span>
+              {devType === 'switcher_boiler' ? (
+                <div className="p-3.5 bg-orange-50/80 rounded-2xl border border-orange-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-orange-950 flex items-center gap-1.5">
+                      <Wifi size={14} className="text-orange-600" />
+                      <span>{t('זיהוי אוטומטי של סוויצ׳ר ⚡', 'Switcher Auto-Discovery')}</span>
+                    </label>
+                    <span className="text-[10px] bg-orange-200/80 text-orange-900 px-2 py-0.5 rounded-full font-bold">
+                      ללא צורך ב-Device ID
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-orange-900 leading-relaxed">
+                    באפליקציית Switcher הרגילה לא מופיע Device ID (הוא מוסתר על ידי היצרן).
+                    <strong> אין צורך לחפש אותו!</strong> המערכת מזהה ומקשרת את הדוד שלכם באופן אוטומטי לחלוטין ברגע שמזינים טלפון וסיסמה בחיבור מכשירים אמיתיים.
+                  </p>
+                  <div className="mt-2.5 pt-2 border-t border-orange-200/70 flex items-center justify-between">
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      {devRealId ? `מזהה מקושר: ${devRealId}` : 'טרם קושר (יקושר אוטומטית בהתחברות)'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDeviceModal(false);
+                        setCredTab('switcher');
+                        setShowSettingsModal(true);
+                      }}
+                      className="text-xs font-bold text-orange-700 hover:text-orange-900 underline cursor-pointer"
+                    >
+                      הגדר חשבון סוויצ׳ר ➔
+                    </button>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  placeholder={
-                    devType === 'switcher_boiler'
-                      ? 'לדוגמה: a1b2c3d4 (מתוך אפליקציית סוויצ׳ר)'
-                      : 'לדוגמה: eb5a7123984... (מתוך אפליקציית Smart Life)'
-                  }
-                  value={devRealId}
-                  onChange={(e) => setDevRealId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                />
-                <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
-                  {devType === 'switcher_boiler'
-                    ? 'היכנס לאפליקציית Switcher ➔ הגדרות הדוד ⚙️ ➔ "פרטי מכשיר" ➔ העתק את ה-Device ID.'
-                    : 'היכנס לאפליקציית Smart Life ➔ בחר במנורה ➔ עיפרון ✏️ ➔ "Device Information" ➔ העתק Device ID.'}
-                </p>
-              </div>
+              ) : (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <Wifi size={14} className="text-indigo-600" />
+                      <span>{t('מזהה מנורת Volcano (Device ID)', 'Real Hardware Device ID')}</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">אופציונלי</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="לדוגמה: eb5a7123984... (מתוך אפליקציית Smart Life)"
+                    value={devRealId}
+                    onChange={(e) => setDevRealId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
+                    באפליקציית Smart Life: היכנסו למנורת Volcano ➔ סמל עיפרון ✏️ למעלה ➔ <strong>Device Information</strong> ➔ העתיקו את ה-<strong>Device ID</strong>.
+                  </p>
+                </div>
+              )}
 
               {/* Timer Default (for Boiler) */}
               {devType === 'switcher_boiler' && (
@@ -855,24 +883,37 @@ export const SmartHomeView: React.FC = () => {
             {/* SWITCHER FORM */}
             {credTab === 'switcher' && (
               <div className="space-y-4">
-                <div className="p-3 bg-orange-50 rounded-2xl border border-orange-200/80 text-orange-950 text-xs leading-relaxed">
-                  ♨️ <strong>חיבור ישיר לענן סוויצ׳ר (Switcher Cloud):</strong>
-                  <p className="mt-1 text-[11px]">
-                    הזן את מספר הטלפון והסיסמה של חשבון ה-Switcher שלך, והשרת יתחבר ישירות לשליטה בדוד.
+                <div className="p-3.5 bg-orange-50 rounded-2xl border border-orange-200 text-orange-950 text-xs leading-relaxed space-y-2">
+                  <div className="font-bold flex items-center gap-1.5 text-sm text-orange-900">
+                    <span>♨️</span>
+                    <span>חיבור מהיר ואוטומטי לחשבון Switcher</span>
+                  </div>
+                  <p className="text-[11px] text-orange-900 leading-relaxed">
+                    <strong>לא צריך לחפש Device ID!</strong> באפליקציית סוויצ׳ר אין צורך באף מזהה טכני.
+                    פשוט הזינו את מספר הטלפון והסיסמה שלכם בחשבון Switcher, והמערכת תתחבר ישירות ותאתר את הדוד שלכם אוטומטית לחלוטין.
                   </p>
+                  <div className="p-2.5 bg-orange-100/70 rounded-xl text-[11px] text-orange-950 border border-orange-200/80 leading-relaxed">
+                    💡 <strong>רגילים להתחבר לסוויצ׳ר עם קוד ב-SMS ואין לכם סיסמה?</strong>
+                    <br />
+                    1. פתחו את אפליקציית Switcher בסמארטפון.
+                    <br />
+                    2. לחצו על תפריט הצד (3 פסים) ➔ <strong>פרטי פרופיל / חשבון</strong> ➔ <strong>הגדרת סיסמה</strong>.
+                    <br />
+                    3. קבעו סיסמה, והזינו אותה כאן יחד עם מספר הטלפון!
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    מספר טלפון סוויצ׳ר *
+                    מספר טלפון רשום בסוויצ׳ר *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="050-1234567"
+                    placeholder="לדוגמה: 0501234567"
                     value={switcherPhone}
                     onChange={(e) => setSwitcherPhone(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                   />
                 </div>
 
@@ -886,33 +927,36 @@ export const SmartHomeView: React.FC = () => {
                     placeholder="••••••••"
                     value={switcherPassword}
                     onChange={(e) => setSwitcherPassword(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                   />
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-700">
-                      או כתובת Webhook ישירה (Home Assistant / IFTTT)
+                      אפשרות מתקדמת: קישור Webhook ישיר (Home Assistant / Shortcuts)
                     </label>
-                    <span className="text-[10px] text-slate-400">מתקדם</span>
+                    <span className="text-[10px] text-slate-400">אופציונלי</span>
                   </div>
                   <input
                     type="text"
                     placeholder="https://maker.ifttt.com/trigger/switcher_{state}/..."
                     value={switcherWebhook}
                     onChange={(e) => setSwitcherWebhook(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono text-left dir-ltr"
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono text-left dir-ltr bg-white"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    מתאים רק למי שמנהל את הבית דרך Home Assistant או שרתי Webhook אישיים.
+                  </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleSaveCredentials('switcher')}
                   disabled={testingCreds || (!switcherPhone && !switcherWebhook)}
-                  className="w-full py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-colors"
+                  className="w-full py-3 rounded-2xl bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
                 >
-                  {testingCreds ? 'מתחבר ל-Switcher...' : 'שמור ובדוק חיבור לסוויצ׳ר'}
+                  {testingCreds ? 'מתחבר ל-Switcher ומאתר מכשירים...' : 'שמור והתחבר אוטומטית לסוויצ׳ר'}
                 </button>
               </div>
             )}

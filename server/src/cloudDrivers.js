@@ -158,21 +158,41 @@ class SwitcherCloudDriver {
   async login() {
     if (this.token) return this.token;
     if (!this.phone || !this.password) {
-      throw new Error('Phone number and password or token required for Switcher');
+      throw new Error('יש להזין מספר טלפון וסיסמה של סוויצ׳ר');
     }
+
+    const cleanPhone = this.phone.replace(/[\s-]/g, '');
 
     const res = await fetch(`${this.baseUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        phone: this.phone,
+        phone: cleanPhone,
         password: this.password,
       }),
     });
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.token) {
-      throw new Error(data.message || data.error || 'Failed to authenticate with Switcher cloud');
+      // Also try with international prefix 972 without leading 0
+      if (cleanPhone.startsWith('0')) {
+        const intlPhone = '972' + cleanPhone.slice(1);
+        const retryRes = await fetch(`${this.baseUrl}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: intlPhone,
+            password: this.password,
+          }),
+        });
+        const retryData = await retryRes.json().catch(() => ({}));
+        if (retryRes.ok && retryData.token) {
+          this.token = retryData.token;
+          return this.token;
+        }
+      }
+
+      throw new Error(data.message || data.error || 'ההתחברות לענן סוויצ׳ר נכשלה. ודא שמספר הטלפון והסיסמה נכונים (או הגדר סיסמה באפליקציית סוויצ׳ר)');
     }
 
     this.token = data.token;
@@ -187,7 +207,17 @@ class SwitcherCloudDriver {
       return true;
     }
 
-    if (!deviceId) throw new Error('Switcher Device ID is required');
+    // If deviceId wasn't provided, attempt auto-discovery from account
+    if (!deviceId) {
+      try {
+        const devices = await this.getDevices();
+        if (devices && devices.length > 0) {
+          deviceId = devices[0].id || devices[0].device_id;
+        }
+      } catch (e) {}
+    }
+
+    if (!deviceId) throw new Error('לא זוהה מזהה דוד של Switcher. יש להתחבר עם טלפון וסיסמה בחיבור מכשירים');
 
     // Attempt direct Switcher Cloud command
     const token = await this.login();
@@ -207,9 +237,30 @@ class SwitcherCloudDriver {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      throw new Error(data.message || 'Switcher cloud control command failed');
+      throw new Error(data.message || 'פקודת הדלקת/כיבוי הדוד בענן Switcher נכשלה');
     }
     return data;
+  }
+
+  async getDevices() {
+    const token = await this.login();
+    const res = await fetch(`${this.baseUrl}/devices`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await res.json().catch(() => ([]));
+    if (!res.ok) {
+      // Fallback try alternate user devices endpoint
+      const altRes = await fetch(`${this.baseUrl}/user/devices`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const altData = await altRes.json().catch(() => ([]));
+      return Array.isArray(altData) ? altData : altData.devices || [];
+    }
+    return Array.isArray(data) ? data : data.devices || [];
   }
 
   async testConnection() {
@@ -217,7 +268,20 @@ class SwitcherCloudDriver {
       return { success: true, message: 'Webhook URL configured' };
     }
     const token = await this.login();
-    return { success: true, message: 'Switcher Cloud Connected' };
+    let discoveredMessage = 'מחובר בהצלחה לענן Switcher!';
+    let devices = [];
+
+    try {
+      devices = await this.getDevices();
+      if (devices && devices.length > 0) {
+        const first = devices[0];
+        discoveredMessage = `מחובר בהצלחה! זוהה מכשיר סוויצ׳ר: "${first.name || 'דוד'}" (מזהה: ${first.id || first.device_id || 'OK'})`;
+      }
+    } catch (e) {
+      // Token verified successfully
+    }
+
+    return { success: true, message: discoveredMessage, devices };
   }
 }
 

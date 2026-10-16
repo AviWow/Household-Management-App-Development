@@ -1200,6 +1200,33 @@ app.post('/api/smart-credentials', async (req, res) => {
         const testRes = await driver.testConnection();
         isConnected = 1;
         testMessage = testRes.message || 'מחובר בהצלחה לענן Switcher!';
+
+        // If Switcher returned discovered devices, auto-link device ID
+        if (testRes.devices && testRes.devices.length > 0) {
+          const first = testRes.devices[0];
+          const discoveredId = first.id || first.device_id;
+          const discoveredName = first.name || 'דוד חשמלי (סוויצ׳ר)';
+          if (discoveredId) {
+            const existingBoiler = db.prepare(`SELECT id FROM smart_devices WHERE device_type = 'switcher_boiler'`).get();
+            if (existingBoiler) {
+              db.prepare(`
+                UPDATE smart_devices
+                SET real_device_id = ?
+                WHERE id = ?
+              `).run(String(discoveredId), existingBoiler.id);
+            } else {
+              const newDevId = `dev-${randomUUID().slice(0, 8)}`;
+              const nowIso = new Date().toISOString();
+              db.prepare(`
+                INSERT INTO smart_devices (
+                  id, name, device_type, room, real_device_id, is_on, brightness,
+                  color_temp, color_hex, timer_minutes, timer_ends_at, current_temp, power_watt,
+                  created_at, updated_at
+                ) VALUES (?, ?, 'switcher_boiler', 'חדר רחצה ראשי', ?, 0, 100, 'warm', '#FFA726', 30, NULL, 46.5, 0, ?, ?)
+              `).run(newDevId, discoveredName, String(discoveredId), nowIso, nowIso);
+            }
+          }
+        }
       }
     } catch (testErr) {
       isConnected = 0;
